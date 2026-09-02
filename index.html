@@ -314,7 +314,7 @@
 
     .month-summary {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 8px;
       margin-bottom: 12px;
     }
@@ -1289,11 +1289,16 @@
       card.className = "next-card";
       const c = info.course;
       const period = c.period ? "第" + c.period + "节 · " : "";
+      const st = entryStatus(getWeekDone(weekId()), c.key);
+      const stTip = st === "done" ? " · 已打勾"
+        : st === "leave" ? " · 已请假"
+        : st === "transfer" ? " · 已调课"
+        : "";
       if (info.kind === "current") {
-        document.getElementById("nextEyebrow").textContent = "正在上课";
+        document.getElementById("nextEyebrow").textContent = "正在上课" + stTip;
         document.getElementById("nextCount").textContent = "剩余 " + info.remain + " 分钟";
       } else {
-        document.getElementById("nextEyebrow").textContent = "今日下一节";
+        document.getElementById("nextEyebrow").textContent = "今日下一节" + stTip;
         document.getElementById("nextCount").textContent = formatCountdown(info.remain);
       }
       document.getElementById("nextName").textContent = c.name;
@@ -1476,7 +1481,7 @@
 
     function clearWeekDone(ask = true) {
       const label = viewWeekId === weekId() ? "本周" : "当前查看周";
-      if (ask && !confirm("清空" + label + "所有打勾？其他周的记录会保留，课表内容不变。")) return;
+      if (ask && !confirm("清空" + label + "所有上课状态（已上/请假/调课）？其他周的记录会保留，课表内容不变。")) return;
       doneByWeek[viewWeekId] = {};
       saveDoneByWeek();
       render();
@@ -1502,6 +1507,7 @@
     }
 
     function openSheet() {
+      document.getElementById("goalInput").value = String(weekGoalPercent);
       document.getElementById("sheet").classList.add("open");
       renderTable();
     }
@@ -1620,7 +1626,8 @@
       document.getElementById("monthSummary").innerHTML =
         '<div class="month-stat done"><b>' + s.done + '</b><span>已上</span></div>' +
         '<div class="month-stat miss"><b>' + s.miss + '</b><span>未上</span></div>' +
-        '<div class="month-stat"><b>' + (s.leave + s.transfer) + '</b><span>请假/调课</span></div>';
+        '<div class="month-stat"><b>' + s.leave + '</b><span>请假</span></div>' +
+        '<div class="month-stat"><b>' + s.transfer + '</b><span>调课</span></div>';
 
       document.querySelectorAll("#monthFilters button").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.filter === monthFilter);
