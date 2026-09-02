@@ -71,6 +71,28 @@
       line-height: 1.4;
     }
 
+    .week-chip {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      border: 1px solid #c5dde2;
+      color: var(--header);
+      font-size: 0.88rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .week-chip .muted {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.8rem;
+    }
+
     .icon-btn {
       flex: none;
       width: 42px;
@@ -447,6 +469,7 @@
       <div>
         <h1>课表打卡</h1>
         <p class="sub" id="subtitle">上完一点，变绿打勾 · 新的一周自动清空</p>
+        <div class="week-chip" id="weekRange" aria-live="polite">本周加载中…</div>
       </div>
       <button type="button" class="icon-btn" id="btnMore" title="更多" aria-label="更多">⋯</button>
     </div>
@@ -558,15 +581,62 @@
       toast._t = setTimeout(() => el.classList.remove("show"), 1800);
     }
 
-    function weekId(date = new Date()) {
+    function startOfWeek(date = new Date()) {
       // 以周一为一周开始
       const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const day = (d.getDay() + 6) % 7; // Mon=0 ... Sun=6
       d.setDate(d.getDate() - day);
+      return d;
+    }
+
+    function weekId(date = new Date()) {
+      const d = startOfWeek(date);
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       return y + "-" + m + "-" + dd;
+    }
+
+    function isoWeekNumber(date = new Date()) {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      return 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+    }
+
+    function formatMd(date) {
+      return (date.getMonth() + 1) + "月" + date.getDate() + "日";
+    }
+
+    function formatYmd(date) {
+      return date.getFullYear() + "年" + formatMd(date);
+    }
+
+    function weekRangeText(date = new Date()) {
+      const mon = startOfWeek(date);
+      const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+      const weekNo = isoWeekNumber(date);
+      const sameYear = mon.getFullYear() === sun.getFullYear();
+      const sameMonth = sameYear && mon.getMonth() === sun.getMonth();
+      const endText = sameMonth
+        ? sun.getDate() + "日"
+        : sameYear
+          ? formatMd(sun)
+          : formatYmd(sun);
+      return {
+        title: "本周 " + formatYmd(mon) + " – " + endText,
+        meta: date.getFullYear() + "年第" + weekNo + "周 · 今天" + formatMd(date) + "（" + DAY_FULL[todayDayLabel()] + "）",
+      };
+    }
+
+    function updateWeekLabel() {
+      const info = weekRangeText(new Date());
+      const el = document.getElementById("weekRange");
+      el.innerHTML =
+        '<span>' + info.title + '</span>' +
+        '<span class="muted">' + info.meta + '</span>';
+      document.getElementById("subtitle").textContent =
+        "上完一点，变绿打勾 · 新的一周自动清空";
     }
 
     function todayDayLabel() {
@@ -790,6 +860,7 @@
     }
 
     function render() {
+      updateWeekLabel();
       renderTabs();
       renderList();
       updateProgress();
