@@ -72,12 +72,12 @@
     }
 
     .week-chip {
-      display: inline-flex;
+      display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px 10px;
+      gap: 8px;
       margin-top: 10px;
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 12px;
       background: var(--accent-soft);
       border: 1px solid #c5dde2;
@@ -87,10 +87,41 @@
       line-height: 1.35;
     }
 
+    .week-chip .week-nav {
+      display: inline-flex;
+      gap: 4px;
+      flex: none;
+    }
+
+    .week-chip .week-nav button {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid #b7ced4;
+      background: #fff;
+      color: var(--header);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .week-chip .week-text {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
     .week-chip .muted {
       color: var(--muted);
       font-weight: 500;
       font-size: 0.8rem;
+    }
+
+    .week-chip.past {
+      background: #eef1f4;
+      border-color: var(--line);
     }
 
     .icon-btn {
@@ -468,8 +499,17 @@
     <div class="top">
       <div>
         <h1>课表打卡</h1>
-        <p class="sub" id="subtitle">上完一点，变绿打勾 · 新的一周自动清空</p>
-        <div class="week-chip" id="weekRange" aria-live="polite">本周加载中…</div>
+        <p class="sub" id="subtitle">上完一点，变绿打勾 · 打卡按周自动保存</p>
+        <div class="week-chip" id="weekRange" aria-live="polite">
+          <div class="week-nav">
+            <button type="button" id="btnPrevWeek" title="上一周" aria-label="上一周">‹</button>
+            <button type="button" id="btnNextWeek" title="下一周" aria-label="下一周">›</button>
+          </div>
+          <div class="week-text">
+            <span id="weekTitle">本周加载中…</span>
+            <span class="muted" id="weekMeta"></span>
+          </div>
+        </div>
       </div>
       <button type="button" class="icon-btn" id="btnMore" title="更多" aria-label="更多">⋯</button>
     </div>
@@ -494,7 +534,7 @@
 
     <p class="hint">
       用法：手机浏览器打开此页 →「添加到主屏幕/收藏」最方便。<br />
-      打卡记录保存在这台手机里；每周一开始会自动清空打勾（也可手动清空）。改课表请点右上角 ⋯。
+      打卡记录按周保存在这台手机里，可左右切换查看往周；「清空本周」只清当前查看周。改课表请点右上角 ⋯。
     </p>
   </div>
 
@@ -570,8 +610,10 @@
     };
 
     const GRID_KEY = "weekly-class-schedule-v2";
-    const DONE_KEY = "weekly-class-done-v1";
-    const WEEK_KEY = "weekly-class-week-id-v1";
+    const DONE_KEY_OLD = "weekly-class-done-v1";
+    const WEEK_KEY_OLD = "weekly-class-week-id-v1";
+    const DONE_BY_WEEK_KEY = "weekly-class-done-by-week-v2";
+    const MAX_WEEKS_KEEP = 52;
 
     function toast(msg) {
       const el = document.getElementById("toast");
@@ -582,9 +624,8 @@
     }
 
     function startOfWeek(date = new Date()) {
-      // 以周一为一周开始
       const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const day = (d.getDay() + 6) % 7; // Mon=0 ... Sun=6
+      const day = (d.getDay() + 6) % 7;
       d.setDate(d.getDate() - day);
       return d;
     }
@@ -595,6 +636,17 @@
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       return y + "-" + m + "-" + dd;
+    }
+
+    function weekIdToDate(id) {
+      const [y, m, d] = id.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function shiftWeekId(id, deltaWeeks) {
+      const d = weekIdToDate(id);
+      d.setDate(d.getDate() + deltaWeeks * 7);
+      return weekId(d);
     }
 
     function isoWeekNumber(date = new Date()) {
@@ -612,10 +664,10 @@
       return date.getFullYear() + "年" + formatMd(date);
     }
 
-    function weekRangeText(date = new Date()) {
-      const mon = startOfWeek(date);
+    function weekRangeText(weekStartId, now = new Date()) {
+      const mon = weekIdToDate(weekStartId);
       const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
-      const weekNo = isoWeekNumber(date);
+      const weekNo = isoWeekNumber(mon);
       const sameYear = mon.getFullYear() === sun.getFullYear();
       const sameMonth = sameYear && mon.getMonth() === sun.getMonth();
       const endText = sameMonth
@@ -623,20 +675,25 @@
         : sameYear
           ? formatMd(sun)
           : formatYmd(sun);
+      const isCurrent = weekStartId === weekId(now);
+      const prefix = isCurrent ? "本周" : "第" + weekNo + "周";
       return {
-        title: "本周 " + formatYmd(mon) + " – " + endText,
-        meta: date.getFullYear() + "年第" + weekNo + "周 · 今天" + formatMd(date) + "（" + DAY_FULL[todayDayLabel()] + "）",
+        title: prefix + " " + formatYmd(mon) + " – " + endText,
+        meta: mon.getFullYear() + "年第" + weekNo + "周" +
+          (isCurrent ? " · 今天" + formatMd(now) + "（" + DAY_FULL[todayDayLabel()] + "）" : " · 历史记录可查看/补打"),
+        isCurrent,
       };
     }
 
     function updateWeekLabel() {
-      const info = weekRangeText(new Date());
-      const el = document.getElementById("weekRange");
-      el.innerHTML =
-        '<span>' + info.title + '</span>' +
-        '<span class="muted">' + info.meta + '</span>';
+      const info = weekRangeText(viewWeekId, new Date());
+      const chip = document.getElementById("weekRange");
+      chip.classList.toggle("past", !info.isCurrent);
+      document.getElementById("weekTitle").textContent = info.title;
+      document.getElementById("weekMeta").textContent = info.meta;
+      document.getElementById("btnNextWeek").disabled = viewWeekId >= weekId();
       document.getElementById("subtitle").textContent =
-        "上完一点，变绿打勾 · 新的一周自动清空";
+        "上完一点，变绿打勾 · 打卡按周自动保存";
     }
 
     function todayDayLabel() {
@@ -678,42 +735,66 @@
       }
     }
 
-    function loadDone() {
+    function loadDoneByWeek() {
       try {
-        return JSON.parse(localStorage.getItem(DONE_KEY) || "{}") || {};
-      } catch {
-        return {};
-      }
+        const raw = localStorage.getItem(DONE_BY_WEEK_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+        }
+      } catch { /* migrate below */ }
+
+      // 迁移旧版：整周共用一份打卡 → 归到当时那一周
+      try {
+        const oldDone = JSON.parse(localStorage.getItem(DONE_KEY_OLD) || "null");
+        const oldWeek = localStorage.getItem(WEEK_KEY_OLD) || weekId();
+        if (oldDone && typeof oldDone === "object" && Object.keys(oldDone).length) {
+          const migrated = { [oldWeek]: oldDone };
+          localStorage.setItem(DONE_BY_WEEK_KEY, JSON.stringify(migrated));
+          return migrated;
+        }
+      } catch { /* ignore */ }
+      return {};
+    }
+
+    function pruneDoneByWeek(store) {
+      const ids = Object.keys(store).sort();
+      if (ids.length <= MAX_WEEKS_KEEP) return store;
+      const keep = ids.slice(-MAX_WEEKS_KEEP);
+      const next = {};
+      for (const id of keep) next[id] = store[id];
+      return next;
     }
 
     function saveGrid() {
       localStorage.setItem(GRID_KEY, JSON.stringify(grid));
     }
 
-    function saveDone() {
-      localStorage.setItem(DONE_KEY, JSON.stringify(done));
-      localStorage.setItem(WEEK_KEY, currentWeek);
+    function getWeekDone(week = viewWeekId) {
+      if (!doneByWeek[week] || typeof doneByWeek[week] !== "object") {
+        doneByWeek[week] = {};
+      }
+      return doneByWeek[week];
     }
 
-    function ensureWeekRollover() {
+    function saveDoneByWeek() {
+      doneByWeek = pruneDoneByWeek(doneByWeek);
+      localStorage.setItem(DONE_BY_WEEK_KEY, JSON.stringify(doneByWeek));
+    }
+
+    function ensureCurrentWeekBucket() {
       const nowWeek = weekId();
-      const saved = localStorage.getItem(WEEK_KEY);
-      if (saved && saved !== nowWeek) {
-        done = {};
-        localStorage.setItem(DONE_KEY, "{}");
-        localStorage.setItem(WEEK_KEY, nowWeek);
-        return true;
-      }
-      if (!saved) localStorage.setItem(WEEK_KEY, nowWeek);
-      return false;
+      if (!doneByWeek[nowWeek]) doneByWeek[nowWeek] = {};
+      // 不再清空旧周，只确保本周桶存在
+      return nowWeek;
     }
 
     let grid = loadGrid();
-    let done = loadDone();
-    let currentWeek = weekId();
+    let doneByWeek = loadDoneByWeek();
+    let viewWeekId = weekId();
     let selectedDay = todayDayLabel();
-    const rolled = ensureWeekRollover();
-    currentWeek = weekId();
+    ensureCurrentWeekBucket();
+    saveDoneByWeek();
 
     function coursesOf(day) {
       return SLOTS
@@ -732,31 +813,49 @@
     }
 
     function countDone(list) {
+      const done = getWeekDone();
       return list.filter((c) => done[c.key]).length;
+    }
+
+    function weekTotalStats(week = viewWeekId) {
+      let total = 0;
+      let finished = 0;
+      const done = getWeekDone(week);
+      for (const day of DAYS) {
+        const list = coursesOf(day);
+        total += list.length;
+        finished += list.filter((c) => done[c.key]).length;
+      }
+      return { total, finished };
     }
 
     function updateProgress() {
       const list = coursesOf(selectedDay);
       const n = list.length;
       const d = countDone(list);
-      const isToday = selectedDay === todayDayLabel();
+      const isCurrentWeek = viewWeekId === weekId();
+      const isToday = isCurrentWeek && selectedDay === todayDayLabel();
       document.getElementById("progressTitle").textContent = isToday
         ? "今日进度"
         : DAY_FULL[selectedDay] + "进度";
-      document.getElementById("progressText").textContent = n ? d + " / " + n + " 节已完成" : "今天没有课";
+      const weekStats = weekTotalStats();
+      const dayText = n ? d + " / " + n + " 节" : "无课";
+      document.getElementById("progressText").textContent =
+        dayText + " · 当周合计 " + weekStats.finished + "/" + weekStats.total;
       document.getElementById("progressBar").style.width = (n ? Math.round((d / n) * 100) : 0) + "%";
     }
 
     function renderTabs() {
       const tabs = document.getElementById("dayTabs");
       tabs.innerHTML = "";
+      const isCurrentWeek = viewWeekId === weekId();
       const today = todayDayLabel();
       for (const day of DAYS) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "day-tab" +
           (day === selectedDay ? " active" : "") +
-          (day === today ? " today" : "");
+          (isCurrentWeek && day === today ? " today" : "");
         const list = coursesOf(day);
         const d = countDone(list);
         btn.innerHTML =
@@ -771,9 +870,10 @@
     }
 
     function toggleDone(key) {
+      const done = getWeekDone();
       if (done[key]) delete done[key];
-      else done[key] = true;
-      saveDone();
+      else done[key] = Date.now();
+      saveDoneByWeek();
       if (navigator.vibrate) navigator.vibrate(12);
       render();
     }
@@ -781,6 +881,7 @@
     function renderList() {
       const root = document.getElementById("classList");
       const list = coursesOf(selectedDay);
+      const done = getWeekDone();
       root.innerHTML = "";
       if (!list.length) {
         root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
@@ -815,6 +916,7 @@
     function paintSlot(el) {
       const value = el.textContent.trim();
       const key = cellKey(el.dataset.slot, el.dataset.day);
+      const done = getWeekDone();
       el.className = "slot " + classFor(value);
       if (!value) el.classList.add("empty");
       if (value && done[key]) {
@@ -868,17 +970,30 @@
     }
 
     function clearWeekDone(ask = true) {
-      if (ask && !confirm("清空本周所有打勾？课表内容不会变。")) return;
-      done = {};
-      saveDone();
+      const label = viewWeekId === weekId() ? "本周" : "当前查看周";
+      if (ask && !confirm("清空" + label + "所有打勾？其他周的记录会保留，课表内容不变。")) return;
+      doneByWeek[viewWeekId] = {};
+      saveDoneByWeek();
       render();
-      toast("本周打卡已清空");
+      toast(label + "打卡已清空");
     }
 
     function goToday() {
+      viewWeekId = weekId();
+      ensureCurrentWeekBucket();
       selectedDay = todayDayLabel();
       render();
       toast("已回到今天");
+    }
+
+    function shiftViewWeek(delta) {
+      const next = shiftWeekId(viewWeekId, delta);
+      if (delta > 0 && next > weekId()) return;
+      viewWeekId = next;
+      if (!doneByWeek[viewWeekId]) doneByWeek[viewWeekId] = {};
+      if (viewWeekId === weekId()) selectedDay = todayDayLabel();
+      else selectedDay = "一";
+      render();
     }
 
     function openSheet() {
@@ -892,7 +1007,6 @@
     }
 
     function saveSchedule() {
-      // strip checkmarks from editable cells first
       document.querySelectorAll("#schedule .slot").forEach((el) => {
         const raw = el.textContent.replace(/\s*✓\s*$/, "").trim();
         grid[el.dataset.slot][el.dataset.day] = raw;
@@ -903,7 +1017,7 @@
     }
 
     function resetSchedule() {
-      if (!confirm("恢复为最初识别的课表？打卡记录会保留。")) return;
+      if (!confirm("恢复为最初识别的课表？各周打卡记录会保留。")) return;
       grid = structuredClone(DEFAULT_GRID);
       saveGrid();
       render();
@@ -911,15 +1025,20 @@
     }
 
     function exportJson() {
-      const blob = new Blob([JSON.stringify({ slots: SLOTS, days: DAYS, grid, done, week: currentWeek }, null, 2)], {
-        type: "application/json",
-      });
+      const blob = new Blob([JSON.stringify({
+        slots: SLOTS,
+        days: DAYS,
+        grid,
+        doneByWeek,
+        viewWeekId,
+        exportedAt: new Date().toISOString(),
+      }, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "class-schedule.json";
       a.click();
       URL.revokeObjectURL(a.href);
-      toast("已导出 JSON");
+      toast("已导出 JSON（含各周打卡）");
     }
 
     async function exportPdf() {
@@ -966,6 +1085,8 @@
     document.getElementById("btnTodayDesk").addEventListener("click", goToday);
     document.getElementById("btnClear").addEventListener("click", () => clearWeekDone(true));
     document.getElementById("btnClearDesk").addEventListener("click", () => clearWeekDone(true));
+    document.getElementById("btnPrevWeek").addEventListener("click", () => shiftViewWeek(-1));
+    document.getElementById("btnNextWeek").addEventListener("click", () => shiftViewWeek(1));
     document.getElementById("btnEdit").addEventListener("click", openSheet);
     document.getElementById("btnEditDesk").addEventListener("click", openSheet);
     document.getElementById("btnMore").addEventListener("click", openSheet);
@@ -980,18 +1101,21 @@
     document.getElementById("btnExport").addEventListener("click", exportJson);
     document.getElementById("btnReset").addEventListener("click", resetSchedule);
 
-    // 跨日/跨周回来时自动刷新
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") return;
-      if (ensureWeekRollover()) toast("新的一周，打卡已自动清空");
-      currentWeek = weekId();
-      selectedDay = todayDayLabel();
+      const prev = viewWeekId;
+      const nowWeek = ensureCurrentWeekBucket();
+      saveDoneByWeek();
+      if (prev === shiftWeekId(nowWeek, -1) || prev === nowWeek) {
+        viewWeekId = nowWeek;
+        selectedDay = todayDayLabel();
+        if (prev !== nowWeek) toast("已进入新的一周，往周记录仍保留");
+      }
       render();
     });
 
     render();
-    if (rolled) toast("新的一周，打卡已自动清空");
-    else toast("点课程即可打勾完成");
+    toast("打卡已按周保存，可切换查看往周");
   </script>
 </body>
 </html>
