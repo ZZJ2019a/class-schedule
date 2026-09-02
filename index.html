@@ -312,6 +312,142 @@
 
     .dock .danger { color: var(--danger); }
 
+    .month-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .month-stat {
+      background: #f7fafb;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .month-stat b {
+      display: block;
+      font-size: 1.2rem;
+      color: var(--header);
+    }
+
+    .month-stat span {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .month-stat.done b { color: var(--done); }
+    .month-stat.miss b { color: var(--danger); }
+
+    .month-filters {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .month-filters button {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+
+    .month-filters button.active {
+      background: var(--header);
+      border-color: var(--header);
+      color: #fff;
+    }
+
+    .month-list {
+      display: grid;
+      gap: 10px;
+      max-height: min(62vh, 560px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .month-day {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .month-day-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #f2f5f8;
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+
+    .month-day-head .sub {
+      margin: 0;
+      font-weight: 500;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .month-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .month-item .time {
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .month-item .name {
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .status-pill {
+      flex: none;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-pill.done {
+      background: var(--done-bg);
+      color: var(--done);
+    }
+
+    .status-pill.miss {
+      background: #f8e8e4;
+      color: var(--danger);
+    }
+
+    .status-pill.pending {
+      background: #eef3f6;
+      color: var(--muted);
+    }
+
+    .status-pill.future {
+      background: #f4f1ea;
+      color: #7a6540;
+    }
+
     .sheet {
       display: none;
       position: fixed;
@@ -527,6 +663,7 @@
 
     <div class="desktop-actions">
       <button type="button" class="primary" id="btnTodayDesk">回到今天</button>
+      <button type="button" id="btnMonthDesk">按月查看</button>
       <button type="button" class="danger" id="btnClearDesk">清空本周打卡</button>
       <button type="button" id="btnEditDesk">编辑课表</button>
       <button type="button" id="btnPdfDesk">导出 PDF</button>
@@ -534,14 +671,42 @@
 
     <p class="hint">
       用法：手机浏览器打开此页 →「添加到主屏幕/收藏」最方便。<br />
-      打卡记录按周保存在这台手机里，可左右切换查看往周；「清空本周」只清当前查看周。改课表请点右上角 ⋯。
+      打卡按周保存；可左右切周，或点「月报」按月看已上/未上。改课表请点右上角 ⋯。
     </p>
   </div>
 
   <div class="dock">
     <button type="button" class="primary" id="btnToday">今天</button>
+    <button type="button" id="btnMonth">月报</button>
     <button type="button" class="danger" id="btnClear">清空本周</button>
     <button type="button" id="btnEdit">编辑课表</button>
+  </div>
+
+  <div class="sheet" id="monthSheet" role="dialog" aria-modal="true" aria-labelledby="monthSheetTitle">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2 id="monthSheetTitle">月度上课记录</h2>
+        <button type="button" class="ghost-btn" id="btnCloseMonth">关闭</button>
+      </div>
+      <div class="week-chip" style="margin:0 0 12px;">
+        <div class="week-nav">
+          <button type="button" id="btnPrevMonth" title="上一月" aria-label="上一月">‹</button>
+          <button type="button" id="btnNextMonth" title="下一月" aria-label="下一月">›</button>
+        </div>
+        <div class="week-text">
+          <span id="monthTitle">加载中…</span>
+          <span class="muted" id="monthMeta">根据课表 + 打卡统计</span>
+        </div>
+      </div>
+      <div class="month-summary" id="monthSummary"></div>
+      <div class="month-filters" id="monthFilters">
+        <button type="button" data-filter="all" class="active">全部</button>
+        <button type="button" data-filter="done">已上</button>
+        <button type="button" data-filter="miss">未上</button>
+        <button type="button" data-filter="pending">待上</button>
+      </div>
+      <div class="month-list" id="monthList"></div>
+    </div>
   </div>
 
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -793,6 +958,9 @@
     let doneByWeek = loadDoneByWeek();
     let viewWeekId = weekId();
     let selectedDay = todayDayLabel();
+    const nowInit = new Date();
+    let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() }; // 0-based month
+    let monthFilter = "all";
     ensureCurrentWeekBucket();
     saveDoneByWeek();
 
@@ -1006,6 +1174,163 @@
       render();
     }
 
+    function dayLabelFromDate(date) {
+      return DAYS[(date.getDay() + 6) % 7];
+    }
+
+    function ymdKey(date) {
+      return date.getFullYear() + "-" +
+        String(date.getMonth() + 1).padStart(2, "0") + "-" +
+        String(date.getDate()).padStart(2, "0");
+    }
+
+    function startOfDay(date) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+
+    function classStatus(date, doneFlag) {
+      if (doneFlag) return "done";
+      const today = startOfDay(new Date());
+      const d = startOfDay(date);
+      if (d.getTime() > today.getTime()) return "future";
+      if (d.getTime() === today.getTime()) return "pending";
+      return "miss";
+    }
+
+    function statusLabel(status) {
+      return ({
+        done: "已上",
+        miss: "未上",
+        pending: "待上",
+        future: "未到",
+      })[status] || status;
+    }
+
+    function buildMonthRecords(y, m) {
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const days = [];
+      let done = 0, miss = 0, pending = 0, future = 0, total = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(y, m, day);
+        const label = dayLabelFromDate(date);
+        const wId = weekId(date);
+        const weekDone = doneByWeek[wId] || {};
+        const items = [];
+
+        for (const slot of SLOTS) {
+          const name = (grid[slot.id]?.[label] || "").trim();
+          if (!name) continue;
+          const key = cellKey(slot.id, label);
+          const status = classStatus(date, !!weekDone[key]);
+          total += 1;
+          if (status === "done") done += 1;
+          else if (status === "miss") miss += 1;
+          else if (status === "pending") pending += 1;
+          else future += 1;
+
+          items.push({
+            slotId: slot.id,
+            period: slot.period,
+            time: slot.time,
+            name,
+            status,
+            key,
+            weekId: wId,
+            dayLabel: label,
+          });
+        }
+
+        if (!items.length) continue;
+        const filtered = items.filter((it) => {
+          if (monthFilter === "all") return true;
+          if (monthFilter === "done") return it.status === "done";
+          if (monthFilter === "miss") return it.status === "miss";
+          if (monthFilter === "pending") return it.status === "pending" || it.status === "future";
+          return true;
+        });
+        if (!filtered.length) continue;
+
+        days.push({
+          date,
+          label,
+          title: formatMd(date) + " · " + DAY_FULL[label],
+          items: filtered,
+          doneCount: items.filter((i) => i.status === "done").length,
+          totalCount: items.length,
+        });
+      }
+
+      return { days, stats: { total, done, miss, pending, future } };
+    }
+
+    function renderMonthView() {
+      const { y, m } = viewMonth;
+      document.getElementById("monthTitle").textContent = y + "年" + (m + 1) + "月";
+      const data = buildMonthRecords(y, m);
+      const s = data.stats;
+      document.getElementById("monthMeta").textContent =
+        "共 " + s.total + " 节安排 · 已上 " + s.done + " · 未上 " + s.miss;
+
+      document.getElementById("monthSummary").innerHTML =
+        '<div class="month-stat done"><b>' + s.done + '</b><span>已上</span></div>' +
+        '<div class="month-stat miss"><b>' + s.miss + '</b><span>未上</span></div>' +
+        '<div class="month-stat"><b>' + (s.pending + s.future) + '</b><span>待上/未到</span></div>';
+
+      document.querySelectorAll("#monthFilters button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.filter === monthFilter);
+      });
+
+      const list = document.getElementById("monthList");
+      if (!data.days.length) {
+        list.innerHTML = '<div class="empty-day">这个月没有可显示的课程记录</div>';
+        return;
+      }
+
+      list.innerHTML = data.days.map((day) => {
+        const headRight = day.doneCount + "/" + day.totalCount + " 已上";
+        const itemsHtml = day.items.map((it) => {
+          const period = it.period ? "第" + it.period + "节 · " : "";
+          return (
+            '<div class="month-item">' +
+              '<div>' +
+                '<div class="time">' + period + escapeHtml(it.time) + '</div>' +
+                '<div class="name ' + tintFor(it.name) + '">' + escapeHtml(it.name) + '</div>' +
+              '</div>' +
+              '<span class="status-pill ' + it.status + '">' + statusLabel(it.status) + '</span>' +
+            '</div>'
+          );
+        }).join("");
+        return (
+          '<section class="month-day">' +
+            '<div class="month-day-head">' +
+              '<div>' + escapeHtml(day.title) + '<p class="sub">' + ymdKey(day.date) + '</p></div>' +
+              '<span class="sub">' + headRight + '</span>' +
+            '</div>' +
+            itemsHtml +
+          '</section>'
+        );
+      }).join("");
+    }
+
+    function openMonthSheet() {
+      const now = new Date();
+      viewMonth = { y: now.getFullYear(), m: now.getMonth() };
+      monthFilter = "all";
+      document.getElementById("monthSheet").classList.add("open");
+      renderMonthView();
+    }
+
+    function closeMonthSheet() {
+      document.getElementById("monthSheet").classList.remove("open");
+    }
+
+    function shiftMonth(delta) {
+      const d = new Date(viewMonth.y, viewMonth.m + delta, 1);
+      viewMonth = { y: d.getFullYear(), m: d.getMonth() };
+      renderMonthView();
+    }
+
     function saveSchedule() {
       document.querySelectorAll("#schedule .slot").forEach((el) => {
         const raw = el.textContent.replace(/\s*✓\s*$/, "").trim();
@@ -1083,6 +1408,20 @@
 
     document.getElementById("btnToday").addEventListener("click", goToday);
     document.getElementById("btnTodayDesk").addEventListener("click", goToday);
+    document.getElementById("btnMonth").addEventListener("click", openMonthSheet);
+    document.getElementById("btnMonthDesk").addEventListener("click", openMonthSheet);
+    document.getElementById("btnCloseMonth").addEventListener("click", closeMonthSheet);
+    document.getElementById("btnPrevMonth").addEventListener("click", () => shiftMonth(-1));
+    document.getElementById("btnNextMonth").addEventListener("click", () => shiftMonth(1));
+    document.getElementById("monthSheet").addEventListener("click", (e) => {
+      if (e.target.id === "monthSheet") closeMonthSheet();
+    });
+    document.getElementById("monthFilters").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-filter]");
+      if (!btn) return;
+      monthFilter = btn.dataset.filter;
+      renderMonthView();
+    });
     document.getElementById("btnClear").addEventListener("click", () => clearWeekDone(true));
     document.getElementById("btnClearDesk").addEventListener("click", () => clearWeekDone(true));
     document.getElementById("btnPrevWeek").addEventListener("click", () => shiftViewWeek(-1));
