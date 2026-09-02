@@ -628,6 +628,141 @@
     }
 
     .desktop-actions .danger { color: var(--danger); }
+
+    .next-card {
+      background: var(--header);
+      color: #f4f7fa;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    .next-card .eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      opacity: 0.72;
+      margin-bottom: 4px;
+    }
+
+    .next-card .next-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .next-card .next-time {
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.9rem;
+      opacity: 0.88;
+    }
+
+    .next-card .next-count {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+
+    .next-card.idle {
+      background: #e8eef2;
+      color: var(--header);
+    }
+
+    .next-card.idle .eyebrow { opacity: 0.65; color: var(--muted); }
+    .next-card.idle .next-count { background: #fff; color: var(--muted); }
+
+    .goal-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+
+    .goal-card.met {
+      border-color: #b7d9c1;
+      background: var(--done-bg);
+    }
+
+    .goal-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .goal-row strong { font-size: 0.98rem; }
+    .goal-row span { color: var(--muted); font-size: 0.82rem; }
+    .goal-card.met .goal-row span { color: var(--done); }
+
+    .class-card.leave {
+      background: #f8e8e4;
+      border-color: #e5bfb4;
+    }
+
+    .class-card.transfer {
+      background: #eef0f8;
+      border-color: #c5cbe0;
+    }
+
+    .class-card .check.leave-mark,
+    .class-card .check.transfer-mark {
+      border-radius: 10px;
+      font-size: 0.72rem;
+      width: auto;
+      min-width: 44px;
+      padding: 0 8px;
+      color: #fff;
+    }
+
+    .class-card .check.leave-mark {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .class-card .check.transfer-mark {
+      background: #4a5878;
+      border-color: #4a5878;
+    }
+
+    .status-pill.leave {
+      background: #f8e8e4;
+      color: var(--danger);
+    }
+
+    .status-pill.transfer {
+      background: #e8ebf5;
+      color: #3f4d72;
+    }
+
+    .tap-hint {
+      margin: -4px 0 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .goal-edit {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .goal-edit label { font-size: 0.9rem; color: var(--muted); }
+    .goal-edit input {
+      width: 72px;
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
   </style>
 </head>
 <body>
@@ -650,6 +785,21 @@
       <button type="button" class="icon-btn" id="btnMore" title="更多" aria-label="更多">⋯</button>
     </div>
 
+    <div class="next-card idle" id="nextCard">
+      <div class="eyebrow" id="nextEyebrow">今日下一节</div>
+      <p class="next-name" id="nextName">加载中…</p>
+      <div class="next-time" id="nextTime"></div>
+      <div class="next-count" id="nextCount">--</div>
+    </div>
+
+    <div class="goal-card" id="goalCard">
+      <div class="goal-row">
+        <strong id="goalTitle">本周完成率</strong>
+        <span id="goalText">--</span>
+      </div>
+      <div class="bar"><i id="goalBar"></i></div>
+    </div>
+
     <div class="progress-card">
       <div class="progress-row">
         <strong id="progressTitle">今日进度</strong>
@@ -657,6 +807,8 @@
       </div>
       <div class="bar"><i id="progressBar"></i></div>
     </div>
+
+    <p class="tap-hint">点课程切换状态：待上 → 已上 → 请假 → 调课</p>
 
     <div class="day-tabs" id="dayTabs"></div>
     <div class="class-list" id="classList"></div>
@@ -671,7 +823,7 @@
 
     <p class="hint">
       用法：手机浏览器打开此页 →「添加到主屏幕/收藏」最方便。<br />
-      打卡按周保存；可左右切周，或点「月报」按月看已上/未上。改课表请点右上角 ⋯。
+      打卡按周保存；点课程可切换已上/请假/调课；顶部有下一节与周完成率。改课表请点右上角 ⋯。
     </p>
   </div>
 
@@ -702,6 +854,8 @@
       <div class="month-filters" id="monthFilters">
         <button type="button" data-filter="all" class="active">全部</button>
         <button type="button" data-filter="done">已上</button>
+        <button type="button" data-filter="leave">请假</button>
+        <button type="button" data-filter="transfer">调课</button>
         <button type="button" data-filter="miss">未上</button>
         <button type="button" data-filter="pending">待上</button>
       </div>
@@ -721,6 +875,12 @@
         <button type="button" id="btnPrint">打印</button>
         <button type="button" id="btnExport">导出 JSON</button>
         <button type="button" id="btnReset" style="color:var(--danger)">恢复原始课表</button>
+      </div>
+      <div class="goal-edit">
+        <label for="goalInput">本周完成率目标</label>
+        <input id="goalInput" type="number" min="1" max="100" step="1" />
+        <span>%</span>
+        <button type="button" id="btnSaveGoal">保存目标</button>
       </div>
       <div id="pdfRoot">
         <div class="pdf-title" style="display:none;margin:0 0 10px;font-weight:700;">周课表</div>
@@ -778,7 +938,10 @@
     const DONE_KEY_OLD = "weekly-class-done-v1";
     const WEEK_KEY_OLD = "weekly-class-week-id-v1";
     const DONE_BY_WEEK_KEY = "weekly-class-done-by-week-v2";
+    const WEEK_GOAL_KEY = "weekly-class-goal-percent-v1";
     const MAX_WEEKS_KEEP = 52;
+    const STATUS_CYCLE = [null, "done", "leave", "transfer"];
+    const DEFAULT_WEEK_GOAL = 90;
 
     function toast(msg) {
       const el = document.getElementById("toast");
@@ -935,6 +1098,84 @@
       localStorage.setItem(GRID_KEY, JSON.stringify(grid));
     }
 
+    function normalizeEntry(v) {
+      if (!v) return null;
+      if (v === true || typeof v === "number") {
+        return { status: "done", at: typeof v === "number" ? v : Date.now() };
+      }
+      if (typeof v === "object" && v.status) return v;
+      return { status: "done", at: Date.now() };
+    }
+
+    function getEntry(map, key) {
+      return normalizeEntry(map[key]);
+    }
+
+    function entryStatus(map, key) {
+      const e = getEntry(map, key);
+      return e ? e.status : null;
+    }
+
+    function isHandledStatus(status) {
+      return status === "done" || status === "leave" || status === "transfer";
+    }
+
+    function loadWeekGoal() {
+      const n = Number(localStorage.getItem(WEEK_GOAL_KEY));
+      if (!Number.isFinite(n) || n < 1 || n > 100) return DEFAULT_WEEK_GOAL;
+      return Math.round(n);
+    }
+
+    function saveWeekGoal(n) {
+      localStorage.setItem(WEEK_GOAL_KEY, String(n));
+    }
+
+    function parseSlotRange(timeStr) {
+      const m = String(timeStr).match(/(\d{1,2}):(\d{2})\s*[–\-〜~]\s*(\d{1,2}):(\d{2})/);
+      if (!m) return null;
+      return {
+        startMin: Number(m[1]) * 60 + Number(m[2]),
+        endMin: Number(m[3]) * 60 + Number(m[4]),
+      };
+    }
+
+    function minutesNow(date = new Date()) {
+      return date.getHours() * 60 + date.getMinutes();
+    }
+
+    function formatCountdown(mins) {
+      if (mins <= 0) return "即将开始";
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h <= 0) return "还有 " + m + " 分钟";
+      return "还有 " + h + " 小时 " + m + " 分";
+    }
+
+    function findNextClass(now = new Date()) {
+      const day = DAYS[(now.getDay() + 6) % 7];
+      const list = coursesOf(day);
+      if (!list.length) return { kind: "empty" };
+      const nowMin = minutesNow(now);
+      const withRange = list.map((c) => ({ ...c, range: parseSlotRange(c.time) })).filter((c) => c.range);
+      const current = withRange.find((c) => nowMin >= c.range.startMin && nowMin < c.range.endMin);
+      if (current) {
+        return {
+          kind: "current",
+          course: current,
+          remain: current.range.endMin - nowMin,
+        };
+      }
+      const upcoming = withRange.find((c) => c.range.startMin > nowMin);
+      if (upcoming) {
+        return {
+          kind: "upcoming",
+          course: upcoming,
+          remain: upcoming.range.startMin - nowMin,
+        };
+      }
+      return { kind: "finished", course: withRange[withRange.length - 1] || list[list.length - 1] };
+    }
+
     function getWeekDone(week = viewWeekId) {
       if (!doneByWeek[week] || typeof doneByWeek[week] !== "object") {
         doneByWeek[week] = {};
@@ -950,17 +1191,18 @@
     function ensureCurrentWeekBucket() {
       const nowWeek = weekId();
       if (!doneByWeek[nowWeek]) doneByWeek[nowWeek] = {};
-      // 不再清空旧周，只确保本周桶存在
       return nowWeek;
     }
 
     let grid = loadGrid();
     let doneByWeek = loadDoneByWeek();
+    let weekGoalPercent = loadWeekGoal();
     let viewWeekId = weekId();
     let selectedDay = todayDayLabel();
     const nowInit = new Date();
-    let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() }; // 0-based month
+    let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() };
     let monthFilter = "all";
+    let nextTimer = null;
     ensureCurrentWeekBucket();
     saveDoneByWeek();
 
@@ -980,37 +1222,117 @@
         .filter(Boolean);
     }
 
-    function countDone(list) {
-      const done = getWeekDone();
-      return list.filter((c) => done[c.key]).length;
+    function countByStatus(list, status) {
+      const map = getWeekDone();
+      return list.filter((c) => entryStatus(map, c.key) === status).length;
+    }
+
+    function countHandled(list) {
+      const map = getWeekDone();
+      return list.filter((c) => isHandledStatus(entryStatus(map, c.key))).length;
     }
 
     function weekTotalStats(week = viewWeekId) {
       let total = 0;
-      let finished = 0;
-      const done = getWeekDone(week);
+      let done = 0;
+      let leave = 0;
+      let transfer = 0;
+      const map = getWeekDone(week);
       for (const day of DAYS) {
         const list = coursesOf(day);
         total += list.length;
-        finished += list.filter((c) => done[c.key]).length;
+        for (const c of list) {
+          const st = entryStatus(map, c.key);
+          if (st === "done") done += 1;
+          else if (st === "leave") leave += 1;
+          else if (st === "transfer") transfer += 1;
+        }
       }
-      return { total, finished };
+      const handled = done + leave + transfer;
+      const rate = total ? Math.round((handled / total) * 100) : 0;
+      return { total, done, leave, transfer, handled, rate };
+    }
+
+    function updateNextCard() {
+      const card = document.getElementById("nextCard");
+      const isCurrentWeek = viewWeekId === weekId();
+      const isToday = isCurrentWeek && selectedDay === todayDayLabel();
+      if (!isToday) {
+        card.className = "next-card idle";
+        document.getElementById("nextEyebrow").textContent = "下一节提示";
+        document.getElementById("nextName").textContent = "查看「今天」时显示下一节";
+        document.getElementById("nextTime").textContent = "可点底部「今天」快速回到今日";
+        document.getElementById("nextCount").textContent = DAY_FULL[selectedDay] || "";
+        return;
+      }
+
+      const info = findNextClass(new Date());
+      if (info.kind === "empty") {
+        card.className = "next-card idle";
+        document.getElementById("nextEyebrow").textContent = "今日安排";
+        document.getElementById("nextName").textContent = "今天没有课";
+        document.getElementById("nextTime").textContent = "好好休息一下";
+        document.getElementById("nextCount").textContent = "无课";
+        return;
+      }
+      if (info.kind === "finished") {
+        card.className = "next-card idle";
+        document.getElementById("nextEyebrow").textContent = "今日课程";
+        document.getElementById("nextName").textContent = "今天的课都结束了";
+        document.getElementById("nextTime").textContent = info.course
+          ? ("最后一节：" + info.course.name + " · " + info.course.time)
+          : "";
+        document.getElementById("nextCount").textContent = "已完成";
+        return;
+      }
+
+      card.className = "next-card";
+      const c = info.course;
+      const period = c.period ? "第" + c.period + "节 · " : "";
+      if (info.kind === "current") {
+        document.getElementById("nextEyebrow").textContent = "正在上课";
+        document.getElementById("nextCount").textContent = "剩余 " + info.remain + " 分钟";
+      } else {
+        document.getElementById("nextEyebrow").textContent = "今日下一节";
+        document.getElementById("nextCount").textContent = formatCountdown(info.remain);
+      }
+      document.getElementById("nextName").textContent = c.name;
+      document.getElementById("nextTime").textContent = period + c.time;
+    }
+
+    function updateGoalCard() {
+      const stats = weekTotalStats();
+      const card = document.getElementById("goalCard");
+      const met = stats.total > 0 && stats.rate >= weekGoalPercent;
+      card.classList.toggle("met", met);
+      document.getElementById("goalTitle").textContent =
+        (viewWeekId === weekId() ? "本周" : "当周") + "完成率目标 " + weekGoalPercent + "%";
+      document.getElementById("goalText").textContent =
+        stats.total
+          ? ("当前 " + stats.rate + "% · " + stats.handled + "/" + stats.total +
+            (met ? " · 已达标" : ""))
+          : "本周无课";
+      document.getElementById("goalBar").style.width = (stats.total ? stats.rate : 0) + "%";
+      document.getElementById("goalBar").style.background = met ? "var(--done)" : "var(--accent)";
     }
 
     function updateProgress() {
       const list = coursesOf(selectedDay);
       const n = list.length;
-      const d = countDone(list);
+      const handled = countHandled(list);
+      const doneN = countByStatus(list, "done");
       const isCurrentWeek = viewWeekId === weekId();
       const isToday = isCurrentWeek && selectedDay === todayDayLabel();
       document.getElementById("progressTitle").textContent = isToday
         ? "今日进度"
         : DAY_FULL[selectedDay] + "进度";
       const weekStats = weekTotalStats();
-      const dayText = n ? d + " / " + n + " 节" : "无课";
+      const dayText = n
+        ? ("已处理 " + handled + "/" + n + "（已上" + doneN + "）")
+        : "无课";
       document.getElementById("progressText").textContent =
-        dayText + " · 当周合计 " + weekStats.finished + "/" + weekStats.total;
-      document.getElementById("progressBar").style.width = (n ? Math.round((d / n) * 100) : 0) + "%";
+        dayText + " · 当周 " + weekStats.rate + "%";
+      document.getElementById("progressBar").style.width = (n ? Math.round((handled / n) * 100) : 0) + "%";
     }
 
     function renderTabs() {
@@ -1025,10 +1347,10 @@
           (day === selectedDay ? " active" : "") +
           (isCurrentWeek && day === today ? " today" : "");
         const list = coursesOf(day);
-        const d = countDone(list);
+        const handled = countHandled(list);
         btn.innerHTML =
           '<span class="d">' + day + "</span>" +
-          '<span class="n">' + (list.length ? d + "/" + list.length : "休") + "</span>";
+          '<span class="n">' + (list.length ? handled + "/" + list.length : "休") + "</span>";
         btn.addEventListener("click", () => {
           selectedDay = day;
           render();
@@ -1037,38 +1359,45 @@
       }
     }
 
-    function toggleDone(key) {
-      const done = getWeekDone();
-      if (done[key]) delete done[key];
-      else done[key] = Date.now();
+    function cycleStatus(key) {
+      const map = getWeekDone();
+      const cur = entryStatus(map, key);
+      const idx = STATUS_CYCLE.indexOf(cur);
+      const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+      if (!next) delete map[key];
+      else map[key] = { status: next, at: Date.now() };
       saveDoneByWeek();
       if (navigator.vibrate) navigator.vibrate(12);
+      const tip = { done: "已上", leave: "请假", transfer: "调课" }[next];
+      if (tip) toast(tip);
       render();
     }
 
     function renderList() {
       const root = document.getElementById("classList");
       const list = coursesOf(selectedDay);
-      const done = getWeekDone();
+      const map = getWeekDone();
       root.innerHTML = "";
       if (!list.length) {
         root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
         return;
       }
       for (const item of list) {
-        const isDone = !!done[item.key];
+        const st = entryStatus(map, item.key);
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "class-card" + (isDone ? " done" : "");
+        btn.className = "class-card" + (st ? " " + st : "");
         const period = item.period ? "第" + item.period + "节 · " : "";
+        let mark = '<div class="check" aria-hidden="true">✓</div>';
+        if (st === "leave") mark = '<div class="check leave-mark" aria-hidden="true">请假</div>';
+        else if (st === "transfer") mark = '<div class="check transfer-mark" aria-hidden="true">调课</div>';
+        else if (st === "done") mark = '<div class="check" aria-hidden="true">✓</div>';
         btn.innerHTML =
           '<div class="class-meta">' +
             '<div class="class-time">' + period + item.time + "</div>" +
             '<div class="class-name ' + tintFor(item.name) + '">' + escapeHtml(item.name) + "</div>" +
-          "</div>" +
-          '<div class="check" aria-hidden="true">✓</div>';
-        btn.setAttribute("aria-pressed", isDone ? "true" : "false");
-        btn.addEventListener("click", () => toggleDone(item.key));
+          "</div>" + mark;
+        btn.addEventListener("click", () => cycleStatus(item.key));
         root.appendChild(btn);
       }
     }
@@ -1082,14 +1411,20 @@
     }
 
     function paintSlot(el) {
-      const value = el.textContent.trim();
+      const value = el.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
       const key = cellKey(el.dataset.slot, el.dataset.day);
-      const done = getWeekDone();
+      const st = entryStatus(getWeekDone(), key);
       el.className = "slot " + classFor(value);
       if (!value) el.classList.add("empty");
-      if (value && done[key]) {
+      if (value && st === "done") {
         el.classList.add("done-mark");
-        if (!el.textContent.includes("✓")) el.textContent = value + " ✓";
+        el.textContent = value + " ✓";
+      } else if (value && st === "leave") {
+        el.textContent = value + " 假";
+      } else if (value && st === "transfer") {
+        el.textContent = value + " 调";
+      } else {
+        el.textContent = value;
       }
     }
 
@@ -1112,12 +1447,12 @@
           cell.textContent = grid[slot.id]?.[day] || "";
           paintSlot(cell);
           cell.addEventListener("input", () => {
-            const raw = cell.textContent.replace(/\s*✓\s*$/, "").trim();
+            const raw = cell.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
             grid[slot.id][day] = raw;
             paintSlot(cell);
           });
           cell.addEventListener("blur", () => {
-            const raw = cell.textContent.replace(/\s*✓\s*$/, "").trim();
+            const raw = cell.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
             grid[slot.id][day] = raw;
             cell.textContent = raw;
             paintSlot(cell);
@@ -1131,6 +1466,8 @@
 
     function render() {
       updateWeekLabel();
+      updateNextCard();
+      updateGoalCard();
       renderTabs();
       renderList();
       updateProgress();
@@ -1188,8 +1525,13 @@
       return new Date(date.getFullYear(), date.getMonth(), date.getDate());
     }
 
-    function classStatus(date, doneFlag) {
-      if (doneFlag) return "done";
+    function classStatus(date, entryOrFlag) {
+      const st = typeof entryOrFlag === "string"
+        ? entryOrFlag
+        : (entryOrFlag && entryOrFlag.status) || (entryOrFlag ? "done" : null);
+      if (st === "done") return "done";
+      if (st === "leave") return "leave";
+      if (st === "transfer") return "transfer";
       const today = startOfDay(new Date());
       const d = startOfDay(date);
       if (d.getTime() > today.getTime()) return "future";
@@ -1200,6 +1542,8 @@
     function statusLabel(status) {
       return ({
         done: "已上",
+        leave: "请假",
+        transfer: "调课",
         miss: "未上",
         pending: "待上",
         future: "未到",
@@ -1209,22 +1553,24 @@
     function buildMonthRecords(y, m) {
       const daysInMonth = new Date(y, m + 1, 0).getDate();
       const days = [];
-      let done = 0, miss = 0, pending = 0, future = 0, total = 0;
+      let done = 0, leave = 0, transfer = 0, miss = 0, pending = 0, future = 0, total = 0;
 
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(y, m, day);
         const label = dayLabelFromDate(date);
         const wId = weekId(date);
-        const weekDone = doneByWeek[wId] || {};
+        const weekMap = doneByWeek[wId] || {};
         const items = [];
 
         for (const slot of SLOTS) {
           const name = (grid[slot.id]?.[label] || "").trim();
           if (!name) continue;
           const key = cellKey(slot.id, label);
-          const status = classStatus(date, !!weekDone[key]);
+          const status = classStatus(date, getEntry(weekMap, key));
           total += 1;
           if (status === "done") done += 1;
+          else if (status === "leave") leave += 1;
+          else if (status === "transfer") transfer += 1;
           else if (status === "miss") miss += 1;
           else if (status === "pending") pending += 1;
           else future += 1;
@@ -1244,10 +1590,8 @@
         if (!items.length) continue;
         const filtered = items.filter((it) => {
           if (monthFilter === "all") return true;
-          if (monthFilter === "done") return it.status === "done";
-          if (monthFilter === "miss") return it.status === "miss";
           if (monthFilter === "pending") return it.status === "pending" || it.status === "future";
-          return true;
+          return it.status === monthFilter;
         });
         if (!filtered.length) continue;
 
@@ -1257,11 +1601,12 @@
           title: formatMd(date) + " · " + DAY_FULL[label],
           items: filtered,
           doneCount: items.filter((i) => i.status === "done").length,
+          handledCount: items.filter((i) => isHandledStatus(i.status)).length,
           totalCount: items.length,
         });
       }
 
-      return { days, stats: { total, done, miss, pending, future } };
+      return { days, stats: { total, done, leave, transfer, miss, pending, future } };
     }
 
     function renderMonthView() {
@@ -1270,12 +1615,12 @@
       const data = buildMonthRecords(y, m);
       const s = data.stats;
       document.getElementById("monthMeta").textContent =
-        "共 " + s.total + " 节安排 · 已上 " + s.done + " · 未上 " + s.miss;
+        "共 " + s.total + " 节 · 已上 " + s.done + " · 请假 " + s.leave + " · 调课 " + s.transfer + " · 未上 " + s.miss;
 
       document.getElementById("monthSummary").innerHTML =
         '<div class="month-stat done"><b>' + s.done + '</b><span>已上</span></div>' +
         '<div class="month-stat miss"><b>' + s.miss + '</b><span>未上</span></div>' +
-        '<div class="month-stat"><b>' + (s.pending + s.future) + '</b><span>待上/未到</span></div>';
+        '<div class="month-stat"><b>' + (s.leave + s.transfer) + '</b><span>请假/调课</span></div>';
 
       document.querySelectorAll("#monthFilters button").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.filter === monthFilter);
@@ -1288,7 +1633,7 @@
       }
 
       list.innerHTML = data.days.map((day) => {
-        const headRight = day.doneCount + "/" + day.totalCount + " 已上";
+        const headRight = "处理 " + day.handledCount + "/" + day.totalCount;
         const itemsHtml = day.items.map((it) => {
           const period = it.period ? "第" + it.period + "节 · " : "";
           return (
@@ -1333,7 +1678,7 @@
 
     function saveSchedule() {
       document.querySelectorAll("#schedule .slot").forEach((el) => {
-        const raw = el.textContent.replace(/\s*✓\s*$/, "").trim();
+        const raw = el.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
         grid[el.dataset.slot][el.dataset.day] = raw;
       });
       saveGrid();
@@ -1355,6 +1700,7 @@
         days: DAYS,
         grid,
         doneByWeek,
+        weekGoalPercent,
         viewWeekId,
         exportedAt: new Date().toISOString(),
       }, null, 2)], { type: "application/json" });
@@ -1439,6 +1785,18 @@
     document.getElementById("btnPrint").addEventListener("click", () => window.print());
     document.getElementById("btnExport").addEventListener("click", exportJson);
     document.getElementById("btnReset").addEventListener("click", resetSchedule);
+    document.getElementById("goalInput").value = String(weekGoalPercent);
+    document.getElementById("btnSaveGoal").addEventListener("click", () => {
+      const n = Number(document.getElementById("goalInput").value);
+      if (!Number.isFinite(n) || n < 1 || n > 100) {
+        toast("请输入 1–100 的目标百分比");
+        return;
+      }
+      weekGoalPercent = Math.round(n);
+      saveWeekGoal(weekGoalPercent);
+      updateGoalCard();
+      toast("已保存周目标 " + weekGoalPercent + "%");
+    });
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") return;
@@ -1453,8 +1811,13 @@
       render();
     });
 
+    if (nextTimer) clearInterval(nextTimer);
+    nextTimer = setInterval(() => {
+      if (viewWeekId === weekId() && selectedDay === todayDayLabel()) updateNextCard();
+    }, 30000);
+
     render();
-    toast("打卡已按周保存，可切换查看往周");
+    toast("下一节 / 请假调课 / 周目标 已启用");
   </script>
 </body>
 </html>
