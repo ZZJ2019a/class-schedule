@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2a6f7c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="课表打卡" />
+  <title>课表打卡</title>
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%E8%AF%BE%E8%A1%A8%E6%89%93%E5%8D%A1%22%2C%22short_name%22%3A%22%E8%AF%BE%E8%A1%A8%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f7f9fb%22%2C%22theme_color%22%3A%22%232a6f7c%22%7D" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=DM+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1a2332;
+      --muted: #5c6b7a;
+      --line: #d8e0e8;
+      --paper: #f3f6f8;
+      --surface: #ffffff;
+      --header: #243447;
+      --accent: #2a6f7c;
+      --accent-soft: #e4f1f3;
+      --done: #2f7d4a;
+      --done-bg: #e5f4ea;
+      --danger: #8a3b2b;
+      --c13: #d6ebf0;
+      --c15: #e8edd8;
+      --c18: #f0e4d8;
+      --c110: #e0e4f0;
+      --cmeet: #f0e8d4;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Noto Sans SC", "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    body {
+      padding: 16px 14px calc(88px + var(--safe-bottom));
+    }
+
+    .wrap { max-width: 720px; margin: 0 auto; }
+
+    .top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: 0.03em;
+      color: var(--header);
+    }
+
+    .sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    .icon-btn {
+      flex: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .progress-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+
+    .progress-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .progress-row strong { font-size: 1.05rem; }
+    .progress-row span { color: var(--muted); font-size: 0.85rem; }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #e7eef2;
+      overflow: hidden;
+    }
+
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: inherit;
+      transition: width 0.25s ease;
+    }
+
+    .day-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+      scrollbar-width: none;
+    }
+
+    .day-tabs::-webkit-scrollbar { display: none; }
+
+    .day-tab {
+      flex: none;
+      min-width: 46px;
+      padding: 10px 0 8px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      text-align: center;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .day-tab .d { display: block; font-weight: 700; font-size: 0.95rem; }
+    .day-tab .n { display: block; margin-top: 2px; font-size: 0.72rem; color: var(--muted); }
+
+    .day-tab.today { border-color: var(--accent); background: var(--accent-soft); }
+    .day-tab.active {
+      background: var(--header);
+      border-color: var(--header);
+      color: #fff;
+    }
+    .day-tab.active .n { color: rgba(255,255,255,0.72); }
+
+    .class-list { display: grid; gap: 10px; }
+
+    .class-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 14px 14px 16px;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      color: inherit;
+      transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+      touch-action: manipulation;
+    }
+
+    .class-card:active { transform: scale(0.985); }
+
+    .class-card.done {
+      background: var(--done-bg);
+      border-color: #b7d9c1;
+    }
+
+    .class-meta { min-width: 0; }
+    .class-time {
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .class-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .class-name.tint-1-3 { color: #1e4f5a; }
+    .class-name.tint-1-5 { color: #3f4d22; }
+    .class-name.tint-1-8 { color: #6a4020; }
+    .class-name.tint-1-10 { color: #333a5c; }
+    .class-name.tint-meet { color: #6a4f18; }
+
+    .check {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid #c5d2db;
+      display: grid;
+      place-items: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: transparent;
+      background: #fff;
+      transition: all 0.15s ease;
+    }
+
+    .class-card.done .check {
+      background: var(--done);
+      border-color: var(--done);
+      color: #fff;
+    }
+
+    .empty-day {
+      background: var(--surface);
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .dock {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 14px calc(10px + var(--safe-bottom));
+      background: rgba(247, 249, 251, 0.92);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    .dock button {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 11px 14px;
+      cursor: pointer;
+      min-height: 44px;
+    }
+
+    .dock .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .dock .danger { color: var(--danger); }
+
+    .sheet {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgba(20, 28, 36, 0.42);
+      padding: 18px 14px calc(18px + var(--safe-bottom));
+      overflow: auto;
+    }
+
+    .sheet.open { display: block; }
+
+    .sheet-panel {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+    }
+
+    .sheet-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .sheet-head h2 { margin: 0; font-size: 1.1rem; }
+
+    .tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .tools button, .ghost-btn {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: #f7fafb;
+      border-radius: 999px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    .board {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 760px;
+    }
+
+    th, td {
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      text-align: center;
+      vertical-align: middle;
+    }
+
+    th:last-child, td:last-child { border-right: none; }
+    tr:last-child td { border-bottom: none; }
+
+    thead th {
+      background: var(--header);
+      color: #f4f7fa;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 10px 6px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .time-cell {
+      background: #f2f5f8;
+      padding: 8px;
+      text-align: left;
+      white-space: nowrap;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .slot {
+      min-height: 44px;
+      margin: 3px;
+      padding: 8px 4px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      outline: none;
+    }
+
+    .slot.empty { color: transparent; }
+    .slot[contenteditable="true"]:focus {
+      box-shadow: inset 0 0 0 2px var(--accent);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .code-1-3 { background: var(--c13); color: #1e4f5a; }
+    .code-1-5 { background: var(--c15); color: #3f4d22; }
+    .code-1-8 { background: var(--c18); color: #6a4020; }
+    .code-1-10 { background: var(--c110); color: #333a5c; }
+    .code-meet { background: var(--cmeet); color: #6a4f18; }
+    .slot.done-mark {
+      background: var(--done) !important;
+      color: #fff !important;
+      position: relative;
+    }
+
+    .hint {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(76px + var(--safe-bottom));
+      transform: translateX(-50%) translateY(12px);
+      background: var(--header);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 0.86rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 50;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (min-width: 860px) {
+      body { padding: 24px 20px 40px; }
+      .dock { display: none; }
+      .desktop-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 14px 0;
+      }
+    }
+
+    @media (max-width: 859px) {
+      .desktop-actions { display: none; }
+    }
+
+    .desktop-actions button {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .desktop-actions .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .desktop-actions .danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>课表打卡</h1>
+        <p class="sub" id="subtitle">上完一点，变绿打勾 · 新的一周自动清空</p>
+      </div>
+      <button type="button" class="icon-btn" id="btnMore" title="更多" aria-label="更多">⋯</button>
+    </div>
+
+    <div class="progress-card">
+      <div class="progress-row">
+        <strong id="progressTitle">今日进度</strong>
+        <span id="progressText">0 / 0</span>
+      </div>
+      <div class="bar"><i id="progressBar"></i></div>
+    </div>
+
+    <div class="day-tabs" id="dayTabs"></div>
+    <div class="class-list" id="classList"></div>
+
+    <div class="desktop-actions">
+      <button type="button" class="primary" id="btnTodayDesk">回到今天</button>
+      <button type="button" class="danger" id="btnClearDesk">清空本周打卡</button>
+      <button type="button" id="btnEditDesk">编辑课表</button>
+      <button type="button" id="btnPdfDesk">导出 PDF</button>
+    </div>
+
+    <p class="hint">
+      用法：手机浏览器打开此页 →「添加到主屏幕/收藏」最方便。<br />
+      打卡记录保存在这台手机里；每周一开始会自动清空打勾（也可手动清空）。改课表请点右上角 ⋯。
+    </p>
+  </div>
+
+  <div class="dock">
+    <button type="button" class="primary" id="btnToday">今天</button>
+    <button type="button" class="danger" id="btnClear">清空本周</button>
+    <button type="button" id="btnEdit">编辑课表</button>
+  </div>
+
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2 id="sheetTitle">编辑课表 / 更多</h2>
+        <button type="button" class="ghost-btn" id="btnCloseSheet">关闭</button>
+      </div>
+      <div class="tools">
+        <button type="button" id="btnSave">保存课表</button>
+        <button type="button" id="btnPdf">导出 PDF</button>
+        <button type="button" id="btnPrint">打印</button>
+        <button type="button" id="btnExport">导出 JSON</button>
+        <button type="button" id="btnReset" style="color:var(--danger)">恢复原始课表</button>
+      </div>
+      <div id="pdfRoot">
+        <div class="pdf-title" style="display:none;margin:0 0 10px;font-weight:700;">周课表</div>
+        <div class="board">
+          <table id="schedule">
+            <thead>
+              <tr>
+                <th>节次 / 时间</th>
+                <th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <p class="hint">长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+  <script>
+    const DAYS = ["一", "二", "三", "四", "五", "六", "日"];
+    const DAY_FULL = { 一: "周一", 二: "周二", 三: "周三", 四: "周四", 五: "周五", 六: "周六", 日: "周日" };
+    const SLOTS = [
+      { id: "p1", period: "1", time: "08:30 – 09:10" },
+      { id: "p2", period: "2", time: "09:20 – 10:00" },
+      { id: "p3", period: "3", time: "10:20 – 11:10" },
+      { id: "p4", period: "4", time: "11:20 – 12:00" },
+      { id: "p5", period: "5", time: "13:40 – 14:20" },
+      { id: "p6", period: "6", time: "14:30 – 15:10" },
+      { id: "p7", period: "7", time: "15:20 – 16:00" },
+      { id: "p8", period: "8", time: "16:10 – 16:40" },
+      { id: "e1", period: "", time: "17:30 – 18:25" },
+      { id: "e2", period: "", time: "18:35 – 19:30" },
+      { id: "e3", period: "", time: "19:30 – 20:30" },
+    ];
+
+    const DEFAULT_GRID = {
+      p1: { 一: "", 二: "1.3", 三: "1.5", 四: "", 五: "集备", 六: "1.3", 日: "" },
+      p2: { 一: "", 二: "1.5", 三: "1.3", 四: "", 五: "", 六: "1.5", 日: "" },
+      p3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
+      p4: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
+      p5: { 一: "1.5", 二: "", 三: "", 四: "1.5", 五: "", 六: "", 日: "" },
+      p6: { 一: "1.3", 二: "", 三: "", 四: "1.3", 五: "", 六: "", 日: "" },
+      p7: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
+      p8: { 一: "", 二: "1.10", 三: "", 四: "1.8", 五: "", 六: "", 日: "" },
+      e1: { 一: "1.3", 二: "", 三: "", 四: "1.5", 五: "", 六: "", 日: "" },
+      e2: { 一: "1.5", 二: "", 三: "", 四: "1.3", 五: "", 六: "", 日: "" },
+      e3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
+    };
+
+    const GRID_KEY = "weekly-class-schedule-v2";
+    const DONE_KEY = "weekly-class-done-v1";
+    const WEEK_KEY = "weekly-class-week-id-v1";
+
+    function toast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove("show"), 1800);
+    }
+
+    function weekId(date = new Date()) {
+      // 以周一为一周开始
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const day = (d.getDay() + 6) % 7; // Mon=0 ... Sun=6
+      d.setDate(d.getDate() - day);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + dd;
+    }
+
+    function todayDayLabel() {
+      return DAYS[(new Date().getDay() + 6) % 7];
+    }
+
+    function cellKey(slotId, day) {
+      return slotId + "|" + day;
+    }
+
+    function classFor(value) {
+      const v = (value || "").trim();
+      if (!v) return "empty";
+      if (v === "1.3") return "code-1-3";
+      if (v === "1.5") return "code-1-5";
+      if (v === "1.8") return "code-1-8";
+      if (v === "1.10" || v === "1.1.0") return "code-1-10";
+      if (v.includes("集备") || v.includes("集体")) return "code-meet";
+      return "";
+    }
+
+    function tintFor(value) {
+      const c = classFor(value);
+      return c.replace("code-", "tint-");
+    }
+
+    function loadGrid() {
+      try {
+        const raw = localStorage.getItem(GRID_KEY);
+        if (!raw) return structuredClone(DEFAULT_GRID);
+        const parsed = JSON.parse(raw);
+        const merged = structuredClone(DEFAULT_GRID);
+        for (const slot of SLOTS) {
+          merged[slot.id] = { ...merged[slot.id], ...(parsed[slot.id] || {}) };
+        }
+        return merged;
+      } catch {
+        return structuredClone(DEFAULT_GRID);
+      }
+    }
+
+    function loadDone() {
+      try {
+        return JSON.parse(localStorage.getItem(DONE_KEY) || "{}") || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveGrid() {
+      localStorage.setItem(GRID_KEY, JSON.stringify(grid));
+    }
+
+    function saveDone() {
+      localStorage.setItem(DONE_KEY, JSON.stringify(done));
+      localStorage.setItem(WEEK_KEY, currentWeek);
+    }
+
+    function ensureWeekRollover() {
+      const nowWeek = weekId();
+      const saved = localStorage.getItem(WEEK_KEY);
+      if (saved && saved !== nowWeek) {
+        done = {};
+        localStorage.setItem(DONE_KEY, "{}");
+        localStorage.setItem(WEEK_KEY, nowWeek);
+        return true;
+      }
+      if (!saved) localStorage.setItem(WEEK_KEY, nowWeek);
+      return false;
+    }
+
+    let grid = loadGrid();
+    let done = loadDone();
+    let currentWeek = weekId();
+    let selectedDay = todayDayLabel();
+    const rolled = ensureWeekRollover();
+    currentWeek = weekId();
+
+    function coursesOf(day) {
+      return SLOTS
+        .map((slot) => {
+          const name = (grid[slot.id]?.[day] || "").trim();
+          if (!name) return null;
+          return {
+            slotId: slot.id,
+            period: slot.period,
+            time: slot.time,
+            name,
+            key: cellKey(slot.id, day),
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function countDone(list) {
+      return list.filter((c) => done[c.key]).length;
+    }
+
+    function updateProgress() {
+      const list = coursesOf(selectedDay);
+      const n = list.length;
+      const d = countDone(list);
+      const isToday = selectedDay === todayDayLabel();
+      document.getElementById("progressTitle").textContent = isToday
+        ? "今日进度"
+        : DAY_FULL[selectedDay] + "进度";
+      document.getElementById("progressText").textContent = n ? d + " / " + n + " 节已完成" : "今天没有课";
+      document.getElementById("progressBar").style.width = (n ? Math.round((d / n) * 100) : 0) + "%";
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById("dayTabs");
+      tabs.innerHTML = "";
+      const today = todayDayLabel();
+      for (const day of DAYS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "day-tab" +
+          (day === selectedDay ? " active" : "") +
+          (day === today ? " today" : "");
+        const list = coursesOf(day);
+        const d = countDone(list);
+        btn.innerHTML =
+          '<span class="d">' + day + "</span>" +
+          '<span class="n">' + (list.length ? d + "/" + list.length : "休") + "</span>";
+        btn.addEventListener("click", () => {
+          selectedDay = day;
+          render();
+        });
+        tabs.appendChild(btn);
+      }
+    }
+
+    function toggleDone(key) {
+      if (done[key]) delete done[key];
+      else done[key] = true;
+      saveDone();
+      if (navigator.vibrate) navigator.vibrate(12);
+      render();
+    }
+
+    function renderList() {
+      const root = document.getElementById("classList");
+      const list = coursesOf(selectedDay);
+      root.innerHTML = "";
+      if (!list.length) {
+        root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
+        return;
+      }
+      for (const item of list) {
+        const isDone = !!done[item.key];
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "class-card" + (isDone ? " done" : "");
+        const period = item.period ? "第" + item.period + "节 · " : "";
+        btn.innerHTML =
+          '<div class="class-meta">' +
+            '<div class="class-time">' + period + item.time + "</div>" +
+            '<div class="class-name ' + tintFor(item.name) + '">' + escapeHtml(item.name) + "</div>" +
+          "</div>" +
+          '<div class="check" aria-hidden="true">✓</div>';
+        btn.setAttribute("aria-pressed", isDone ? "true" : "false");
+        btn.addEventListener("click", () => toggleDone(item.key));
+        root.appendChild(btn);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function paintSlot(el) {
+      const value = el.textContent.trim();
+      const key = cellKey(el.dataset.slot, el.dataset.day);
+      el.className = "slot " + classFor(value);
+      if (!value) el.classList.add("empty");
+      if (value && done[key]) {
+        el.classList.add("done-mark");
+        if (!el.textContent.includes("✓")) el.textContent = value + " ✓";
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector("#schedule tbody");
+      tbody.innerHTML = "";
+      for (const slot of SLOTS) {
+        const tr = document.createElement("tr");
+        const timeTd = document.createElement("td");
+        timeTd.className = "time-cell";
+        timeTd.textContent = (slot.period ? slot.period + " " : "") + slot.time;
+        tr.appendChild(timeTd);
+        for (const day of DAYS) {
+          const td = document.createElement("td");
+          const cell = document.createElement("div");
+          cell.contentEditable = "true";
+          cell.spellcheck = false;
+          cell.dataset.slot = slot.id;
+          cell.dataset.day = day;
+          cell.textContent = grid[slot.id]?.[day] || "";
+          paintSlot(cell);
+          cell.addEventListener("input", () => {
+            const raw = cell.textContent.replace(/\s*✓\s*$/, "").trim();
+            grid[slot.id][day] = raw;
+            paintSlot(cell);
+          });
+          cell.addEventListener("blur", () => {
+            const raw = cell.textContent.replace(/\s*✓\s*$/, "").trim();
+            grid[slot.id][day] = raw;
+            cell.textContent = raw;
+            paintSlot(cell);
+          });
+          td.appendChild(cell);
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    }
+
+    function render() {
+      renderTabs();
+      renderList();
+      updateProgress();
+      if (document.getElementById("sheet").classList.contains("open")) renderTable();
+    }
+
+    function clearWeekDone(ask = true) {
+      if (ask && !confirm("清空本周所有打勾？课表内容不会变。")) return;
+      done = {};
+      saveDone();
+      render();
+      toast("本周打卡已清空");
+    }
+
+    function goToday() {
+      selectedDay = todayDayLabel();
+      render();
+      toast("已回到今天");
+    }
+
+    function openSheet() {
+      document.getElementById("sheet").classList.add("open");
+      renderTable();
+    }
+
+    function closeSheet() {
+      document.getElementById("sheet").classList.remove("open");
+      render();
+    }
+
+    function saveSchedule() {
+      // strip checkmarks from editable cells first
+      document.querySelectorAll("#schedule .slot").forEach((el) => {
+        const raw = el.textContent.replace(/\s*✓\s*$/, "").trim();
+        grid[el.dataset.slot][el.dataset.day] = raw;
+      });
+      saveGrid();
+      toast("课表已保存");
+      render();
+    }
+
+    function resetSchedule() {
+      if (!confirm("恢复为最初识别的课表？打卡记录会保留。")) return;
+      grid = structuredClone(DEFAULT_GRID);
+      saveGrid();
+      render();
+      toast("已恢复原始课表");
+    }
+
+    function exportJson() {
+      const blob = new Blob([JSON.stringify({ slots: SLOTS, days: DAYS, grid, done, week: currentWeek }, null, 2)], {
+        type: "application/json",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "class-schedule.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast("已导出 JSON");
+    }
+
+    async function exportPdf() {
+      if (typeof html2pdf === "undefined") {
+        toast("PDF 库加载失败，可改用打印");
+        return;
+      }
+      openSheet();
+      await new Promise((r) => setTimeout(r, 50));
+      const root = document.getElementById("pdfRoot");
+      const title = root.querySelector(".pdf-title");
+      title.style.display = "block";
+      document.querySelectorAll("#schedule .slot").forEach((el) => el.contentEditable = "false");
+      try {
+        const stamp = new Date();
+        const name =
+          "周课表-" +
+          stamp.getFullYear() +
+          String(stamp.getMonth() + 1).padStart(2, "0") +
+          String(stamp.getDate()).padStart(2, "0") +
+          ".pdf";
+        await html2pdf()
+          .set({
+            margin: [10, 8, 10, 8],
+            filename: name,
+            image: { type: "jpeg", quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
+            jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+            pagebreak: { mode: ["avoid-all"] },
+          })
+          .from(root)
+          .save();
+        toast("已导出 PDF");
+      } catch (e) {
+        console.error(e);
+        toast("导出失败，试试打印");
+      } finally {
+        title.style.display = "none";
+        document.querySelectorAll("#schedule .slot").forEach((el) => el.contentEditable = "true");
+      }
+    }
+
+    document.getElementById("btnToday").addEventListener("click", goToday);
+    document.getElementById("btnTodayDesk").addEventListener("click", goToday);
+    document.getElementById("btnClear").addEventListener("click", () => clearWeekDone(true));
+    document.getElementById("btnClearDesk").addEventListener("click", () => clearWeekDone(true));
+    document.getElementById("btnEdit").addEventListener("click", openSheet);
+    document.getElementById("btnEditDesk").addEventListener("click", openSheet);
+    document.getElementById("btnMore").addEventListener("click", openSheet);
+    document.getElementById("btnCloseSheet").addEventListener("click", closeSheet);
+    document.getElementById("sheet").addEventListener("click", (e) => {
+      if (e.target.id === "sheet") closeSheet();
+    });
+    document.getElementById("btnSave").addEventListener("click", saveSchedule);
+    document.getElementById("btnPdf").addEventListener("click", exportPdf);
+    document.getElementById("btnPdfDesk").addEventListener("click", exportPdf);
+    document.getElementById("btnPrint").addEventListener("click", () => window.print());
+    document.getElementById("btnExport").addEventListener("click", exportJson);
+    document.getElementById("btnReset").addEventListener("click", resetSchedule);
+
+    // 跨日/跨周回来时自动刷新
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      if (ensureWeekRollover()) toast("新的一周，打卡已自动清空");
+      currentWeek = weekId();
+      selectedDay = todayDayLabel();
+      render();
+    });
+
+    render();
+    if (rolled) toast("新的一周，打卡已自动清空");
+    else toast("点课程即可打勾完成");
+  </script>
+</body>
+</html>
