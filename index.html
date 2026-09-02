@@ -208,22 +208,138 @@
 
     .class-card {
       display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
       align-items: center;
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 14px 14px 14px 16px;
+      padding: 12px 10px 12px 14px;
       text-align: left;
-      cursor: pointer;
       font: inherit;
       color: inherit;
-      transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
-      touch-action: manipulation;
     }
 
-    .class-card:active { transform: scale(0.985); }
+    .class-card .main-hit {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    .class-card .more-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #f7fafb;
+      font: inherit;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      flex: none;
+    }
+
+    .class-card.other {
+      background: #f4f1ea;
+      border-color: #ddd2bc;
+    }
+
+    .class-card .check.other-mark {
+      border-radius: 10px;
+      font-size: 0.72rem;
+      width: auto;
+      min-width: 44px;
+      padding: 0 8px;
+      color: #fff;
+      background: #8a7340;
+      border-color: #8a7340;
+    }
+
+    .status-pill.other {
+      background: #f4f1ea;
+      color: #6a5a30;
+    }
+
+    .transfer-note {
+      margin-top: 4px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .action-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .action-list button {
+      font: inherit;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px 14px;
+      cursor: pointer;
+    }
+
+    .action-list button strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .action-list button span {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    .action-list button.danger-text {
+      color: var(--danger);
+    }
+
+    .transfer-targets {
+      display: grid;
+      gap: 8px;
+      max-height: min(55vh, 480px);
+      overflow: auto;
+    }
+
+    .transfer-day-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin: 6px 0 2px;
+      color: var(--header);
+    }
+
+    .transfer-slot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      font: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .transfer-slot:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .transfer-slot .meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
 
     .class-card.done {
       background: var(--done-bg);
@@ -808,7 +924,7 @@
       <div class="bar"><i id="progressBar"></i></div>
     </div>
 
-    <p class="tap-hint">点课程切换状态：待上 → 已上 → 请假 → 调课</p>
+    <p class="tap-hint">点课程：已上 / 未上 · 右侧「⋯」可选请假、调课、其他</p>
 
     <div class="day-tabs" id="dayTabs"></div>
     <div class="class-list" id="classList"></div>
@@ -822,8 +938,7 @@
     </div>
 
     <p class="hint">
-      用法：手机浏览器打开此页 →「添加到主屏幕/收藏」最方便。<br />
-      打卡按周保存；点课程可切换已上/请假/调课；顶部有下一节与周完成率。改课表请点右上角 ⋯。
+      用法：点课程只切换已上/未上；右侧按钮可选请假、调课、其他。调课时可把这节调到本周其他空闲时间。
     </p>
   </div>
 
@@ -832,6 +947,33 @@
     <button type="button" id="btnMonth">月报</button>
     <button type="button" class="danger" id="btnClear">清空本周</button>
     <button type="button" id="btnEdit">编辑课表</button>
+  </div>
+
+  <div class="sheet" id="actionSheet" role="dialog" aria-modal="true">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2 id="actionTitle">更多操作</h2>
+        <button type="button" class="ghost-btn" id="btnCloseAction">关闭</button>
+      </div>
+      <p class="hint" id="actionCourse" style="margin-top:0;"></p>
+      <div class="action-list">
+        <button type="button" id="btnActLeave"><strong>请假</strong><span>这节课请假，计入已处理</span></button>
+        <button type="button" id="btnActTransfer"><strong>调课</strong><span>把这节调到本周其他时间</span></button>
+        <button type="button" id="btnActOther"><strong>其他</strong><span>特殊情况（可写备注）</span></button>
+        <button type="button" class="danger-text" id="btnActClear"><strong>清除特殊状态</strong><span>去掉请假/调课/其他，恢复为未上或已上</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet" id="transferSheet" role="dialog" aria-modal="true">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>选择调到哪里</h2>
+        <button type="button" class="ghost-btn" id="btnCloseTransfer">取消</button>
+      </div>
+      <p class="hint" id="transferFrom" style="margin-top:0;"></p>
+      <div class="transfer-targets" id="transferTargets"></div>
+    </div>
   </div>
 
   <div class="sheet" id="monthSheet" role="dialog" aria-modal="true" aria-labelledby="monthSheetTitle">
@@ -856,6 +998,7 @@
         <button type="button" data-filter="done">已上</button>
         <button type="button" data-filter="leave">请假</button>
         <button type="button" data-filter="transfer">调课</button>
+        <button type="button" data-filter="other">其他</button>
         <button type="button" data-filter="miss">未上</button>
         <button type="button" data-filter="pending">待上</button>
       </div>
@@ -938,9 +1081,9 @@
     const DONE_KEY_OLD = "weekly-class-done-v1";
     const WEEK_KEY_OLD = "weekly-class-week-id-v1";
     const DONE_BY_WEEK_KEY = "weekly-class-done-by-week-v2";
+    const WEEK_OVERRIDE_KEY = "weekly-class-overrides-v1";
     const WEEK_GOAL_KEY = "weekly-class-goal-percent-v1";
     const MAX_WEEKS_KEEP = 52;
-    const STATUS_CYCLE = [null, "done", "leave", "transfer"];
     const DEFAULT_WEEK_GOAL = 90;
 
     function toast(msg) {
@@ -1117,7 +1260,46 @@
     }
 
     function isHandledStatus(status) {
-      return status === "done" || status === "leave" || status === "transfer";
+      return status === "done" || status === "leave" || status === "transfer" || status === "other";
+    }
+
+    function loadOverrides() {
+      try {
+        const raw = localStorage.getItem(WEEK_OVERRIDE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveOverrides() {
+      const ids = Object.keys(weekOverrides).sort();
+      if (ids.length > MAX_WEEKS_KEEP) {
+        const keep = ids.slice(-MAX_WEEKS_KEEP);
+        const next = {};
+        for (const id of keep) next[id] = weekOverrides[id];
+        weekOverrides = next;
+      }
+      localStorage.setItem(WEEK_OVERRIDE_KEY, JSON.stringify(weekOverrides));
+    }
+
+    function getWeekOverride(week = viewWeekId) {
+      if (!weekOverrides[week] || typeof weekOverrides[week] !== "object") {
+        weekOverrides[week] = {};
+      }
+      return weekOverrides[week];
+    }
+
+    function describeSlot(slotId, day) {
+      const slot = SLOTS.find((s) => s.id === slotId);
+      const period = slot && slot.period ? "第" + slot.period + "节 " : "";
+      return DAY_FULL[day] + " " + period + (slot ? slot.time : "");
+    }
+
+    function parseCellKey(key) {
+      const i = key.indexOf("|");
+      return { slotId: key.slice(0, i), day: key.slice(i + 1) };
     }
 
     function loadWeekGoal() {
@@ -1153,7 +1335,8 @@
 
     function findNextClass(now = new Date()) {
       const day = DAYS[(now.getDay() + 6) % 7];
-      const list = coursesOf(day);
+      const map = getWeekDone(weekId(now));
+      const list = coursesOf(day, weekId(now)).filter((c) => entryStatus(map, c.key) !== "transfer");
       if (!list.length) return { kind: "empty" };
       const nowMin = minutesNow(now);
       const withRange = list.map((c) => ({ ...c, range: parseSlotRange(c.time) })).filter((c) => c.range);
@@ -1196,6 +1379,7 @@
 
     let grid = loadGrid();
     let doneByWeek = loadDoneByWeek();
+    let weekOverrides = loadOverrides();
     let weekGoalPercent = loadWeekGoal();
     let viewWeekId = weekId();
     let selectedDay = todayDayLabel();
@@ -1203,22 +1387,47 @@
     let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() };
     let monthFilter = "all";
     let nextTimer = null;
+    let actionTarget = null; // { key, slotId, day, name, time, period }
     ensureCurrentWeekBucket();
     saveDoneByWeek();
 
-    function coursesOf(day) {
+    function baseNameOf(slotId, day) {
+      return (grid[slotId]?.[day] || "").trim();
+    }
+
+    function effectiveCourse(slotId, day, week = viewWeekId) {
+      const key = cellKey(slotId, day);
+      const ov = getWeekOverride(week)[key];
+      if (ov && ov.removed) return null;
+      if (ov && ov.name) {
+        return {
+          slotId,
+          day,
+          period: (SLOTS.find((s) => s.id === slotId) || {}).period || "",
+          time: (SLOTS.find((s) => s.id === slotId) || {}).time || "",
+          name: ov.name,
+          key,
+          fromKey: ov.from || null,
+          isMovedIn: true,
+        };
+      }
+      const name = baseNameOf(slotId, day);
+      if (!name) return null;
+      return {
+        slotId,
+        day,
+        period: (SLOTS.find((s) => s.id === slotId) || {}).period || "",
+        time: (SLOTS.find((s) => s.id === slotId) || {}).time || "",
+        name,
+        key,
+        fromKey: null,
+        isMovedIn: false,
+      };
+    }
+
+    function coursesOf(day, week = viewWeekId) {
       return SLOTS
-        .map((slot) => {
-          const name = (grid[slot.id]?.[day] || "").trim();
-          if (!name) return null;
-          return {
-            slotId: slot.id,
-            period: slot.period,
-            time: slot.time,
-            name,
-            key: cellKey(slot.id, day),
-          };
-        })
+        .map((slot) => effectiveCourse(slot.id, day, week))
         .filter(Boolean);
     }
 
@@ -1364,18 +1573,161 @@
       }
     }
 
-    function cycleStatus(key) {
+    function toggleAttend(key) {
       const map = getWeekDone();
       const cur = entryStatus(map, key);
-      const idx = STATUS_CYCLE.indexOf(cur);
-      const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-      if (!next) delete map[key];
-      else map[key] = { status: next, at: Date.now() };
+      if (cur === "done") {
+        delete map[key];
+        toast("未上");
+      } else if (cur === "leave" || cur === "transfer" || cur === "other") {
+        map[key] = { status: "done", at: Date.now(), note: getEntry(map, key)?.note };
+        toast("已上");
+      } else {
+        map[key] = { status: "done", at: Date.now() };
+        toast("已上");
+      }
       saveDoneByWeek();
       if (navigator.vibrate) navigator.vibrate(12);
-      const tip = { done: "已上", leave: "请假", transfer: "调课" }[next];
-      if (tip) toast(tip);
       render();
+    }
+
+    function openActionSheet(item) {
+      actionTarget = item;
+      document.getElementById("actionTitle").textContent = "更多操作";
+      const period = item.period ? "第" + item.period + "节 · " : "";
+      document.getElementById("actionCourse").textContent =
+        item.name + " · " + period + item.time + " · " + DAY_FULL[item.day || selectedDay];
+      document.getElementById("actionSheet").classList.add("open");
+    }
+
+    function closeActionSheet() {
+      document.getElementById("actionSheet").classList.remove("open");
+    }
+
+    function setSpecialStatus(status, note) {
+      if (!actionTarget) return;
+      const map = getWeekDone();
+      const prev = getEntry(map, actionTarget.key) || {};
+      map[actionTarget.key] = {
+        status,
+        at: Date.now(),
+        note: note || prev.note || "",
+        to: status === "transfer" ? prev.to : undefined,
+      };
+      saveDoneByWeek();
+      closeActionSheet();
+      toast(({ leave: "已标记请假", other: "已标记其他", transfer: "已标记调课" })[status] || "已更新");
+      render();
+    }
+
+    function clearSpecialStatus() {
+      if (!actionTarget) return;
+      const map = getWeekDone();
+      const key = actionTarget.key;
+      const entry = getEntry(map, key);
+      const ov = getWeekOverride();
+
+      if (entry && entry.to) {
+        const destKey = entry.to;
+        if (ov[destKey] && ov[destKey].from === key) delete ov[destKey];
+        delete map[destKey];
+      }
+      // if this card is a moved-in override
+      if (ov[key] && ov[key].from) {
+        const fromKey = ov[key].from;
+        const fromEntry = getEntry(map, fromKey);
+        if (fromEntry && fromEntry.to === key) {
+          delete map[fromKey];
+        }
+        delete ov[key];
+      }
+      if (ov[key] && ov[key].removed) delete ov[key];
+
+      if (entryStatus(map, key) === "done") {
+        map[key] = { status: "done", at: Date.now() };
+      } else {
+        delete map[key];
+      }
+
+      saveDoneByWeek();
+      saveOverrides();
+      closeActionSheet();
+      actionTarget = null;
+      toast("已清除特殊状态");
+      render();
+    }
+
+    function openTransferPicker() {
+      if (!actionTarget) return;
+      closeActionSheet();
+      const period = actionTarget.period ? "第" + actionTarget.period + "节 · " : "";
+      document.getElementById("transferFrom").textContent =
+        "将「" + actionTarget.name + "」从 " +
+        DAY_FULL[actionTarget.day || selectedDay] + " " + period + actionTarget.time + " 调到：";
+      const root = document.getElementById("transferTargets");
+      root.innerHTML = "";
+      const sourceKey = actionTarget.key;
+      const sourceDay = actionTarget.day || selectedDay;
+
+      for (const day of DAYS) {
+        const title = document.createElement("div");
+        title.className = "transfer-day-title";
+        title.textContent = DAY_FULL[day];
+        root.appendChild(title);
+
+        for (const slot of SLOTS) {
+          const key = cellKey(slot.id, day);
+          if (key === sourceKey) continue;
+          const existing = effectiveCourse(slot.id, day);
+          const occupied = !!existing;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "transfer-slot";
+          btn.disabled = occupied;
+          const periodTxt = slot.period ? "第" + slot.period + "节 · " : "";
+          btn.innerHTML =
+            "<div><div><strong>" + periodTxt + escapeHtml(slot.time) + "</strong></div>" +
+            '<div class="meta">' + (occupied ? ("已有：" + escapeHtml(existing.name)) : "空闲可调入") + "</div></div>";
+          if (!occupied) {
+            btn.addEventListener("click", () =>
+              applyTransfer(sourceDay, actionTarget.slotId, day, slot.id, actionTarget.name)
+            );
+          }
+          root.appendChild(btn);
+        }
+      }
+      document.getElementById("transferSheet").classList.add("open");
+    }
+
+    function closeTransferSheet() {
+      document.getElementById("transferSheet").classList.remove("open");
+    }
+
+    function applyTransfer(fromDay, fromSlotId, toDay, toSlotId, name) {
+      const fromKey = cellKey(fromSlotId, fromDay);
+      const toKey = cellKey(toSlotId, toDay);
+      const ov = getWeekOverride();
+      const map = getWeekDone();
+
+      const old = getEntry(map, fromKey);
+      if (old && old.to) {
+        const prevTo = old.to;
+        if (ov[prevTo] && ov[prevTo].from === fromKey) delete ov[prevTo];
+        delete map[prevTo];
+      }
+
+      // 原时段保留为「调课」展示；目标时段本周临时出现这门课
+      ov[toKey] = { name: name, from: fromKey };
+      map[fromKey] = { status: "transfer", at: Date.now(), to: toKey };
+      delete map[toKey];
+
+      saveOverrides();
+      saveDoneByWeek();
+      closeTransferSheet();
+      actionTarget = null;
+      selectedDay = toDay;
+      render();
+      toast("已调到 " + describeSlot(toSlotId, toDay));
     }
 
     function renderList() {
@@ -1388,22 +1740,62 @@
         return;
       }
       for (const item of list) {
+        item.day = selectedDay;
         const st = entryStatus(map, item.key);
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "class-card" + (st ? " " + st : "");
+        const entry = getEntry(map, item.key);
+        const card = document.createElement("div");
+        card.className = "class-card" + (st ? " " + st : "");
+
         const period = item.period ? "第" + item.period + "节 · " : "";
-        let mark = '<div class="check" aria-hidden="true">✓</div>';
-        if (st === "leave") mark = '<div class="check leave-mark" aria-hidden="true">请假</div>';
+        let note = "";
+        if (st === "transfer" && entry && entry.to) {
+          const t = parseCellKey(entry.to);
+          note = '<div class="transfer-note">已调至 ' + escapeHtml(describeSlot(t.slotId, t.day)) + "</div>";
+        } else if (item.isMovedIn && item.fromKey) {
+          const f = parseCellKey(item.fromKey);
+          note = '<div class="transfer-note">由 ' + escapeHtml(describeSlot(f.slotId, f.day)) + " 调入</div>";
+        } else if (st === "other" && entry && entry.note) {
+          note = '<div class="transfer-note">' + escapeHtml(entry.note) + "</div>";
+        }
+
+        let mark = '<div class="check" aria-hidden="true"></div>';
+        if (st === "done") mark = '<div class="check" aria-hidden="true">✓</div>';
+        else if (st === "leave") mark = '<div class="check leave-mark" aria-hidden="true">请假</div>';
         else if (st === "transfer") mark = '<div class="check transfer-mark" aria-hidden="true">调课</div>';
-        else if (st === "done") mark = '<div class="check" aria-hidden="true">✓</div>';
-        btn.innerHTML =
+        else if (st === "other") mark = '<div class="check other-mark" aria-hidden="true">其他</div>';
+
+        const main = document.createElement("button");
+        main.type = "button";
+        main.className = "main-hit";
+        main.innerHTML =
           '<div class="class-meta">' +
             '<div class="class-time">' + period + item.time + "</div>" +
             '<div class="class-name ' + tintFor(item.name) + '">' + escapeHtml(item.name) + "</div>" +
-          "</div>" + mark;
-        btn.addEventListener("click", () => cycleStatus(item.key));
-        root.appendChild(btn);
+            note +
+          "</div>";
+        main.addEventListener("click", () => toggleAttend(item.key));
+
+        const markWrap = document.createElement("button");
+        markWrap.type = "button";
+        markWrap.className = "main-hit";
+        markWrap.style.width = "auto";
+        markWrap.innerHTML = mark;
+        markWrap.addEventListener("click", () => toggleAttend(item.key));
+
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "more-btn";
+        more.setAttribute("aria-label", "更多");
+        more.textContent = "⋯";
+        more.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openActionSheet(item);
+        });
+
+        card.appendChild(main);
+        card.appendChild(markWrap);
+        card.appendChild(more);
+        root.appendChild(card);
       }
     }
 
@@ -1416,7 +1808,7 @@
     }
 
     function paintSlot(el) {
-      const value = el.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
+      const value = el.textContent.replace(/\s*(✓|假|调|他)\s*$/, "").trim();
       const key = cellKey(el.dataset.slot, el.dataset.day);
       const st = entryStatus(getWeekDone(), key);
       el.className = "slot " + classFor(value);
@@ -1428,6 +1820,8 @@
         el.textContent = value + " 假";
       } else if (value && st === "transfer") {
         el.textContent = value + " 调";
+      } else if (value && st === "other") {
+        el.textContent = value + " 他";
       } else {
         el.textContent = value;
       }
@@ -1452,12 +1846,12 @@
           cell.textContent = grid[slot.id]?.[day] || "";
           paintSlot(cell);
           cell.addEventListener("input", () => {
-            const raw = cell.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
+            const raw = cell.textContent.replace(/\s*(✓|假|调|他)\s*$/, "").trim();
             grid[slot.id][day] = raw;
             paintSlot(cell);
           });
           cell.addEventListener("blur", () => {
-            const raw = cell.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
+            const raw = cell.textContent.replace(/\s*(✓|假|调|他)\s*$/, "").trim();
             grid[slot.id][day] = raw;
             cell.textContent = raw;
             paintSlot(cell);
@@ -1550,6 +1944,7 @@
         done: "已上",
         leave: "请假",
         transfer: "调课",
+        other: "其他",
         miss: "未上",
         pending: "待上",
         future: "未到",
@@ -1559,7 +1954,7 @@
     function buildMonthRecords(y, m) {
       const daysInMonth = new Date(y, m + 1, 0).getDate();
       const days = [];
-      let done = 0, leave = 0, transfer = 0, miss = 0, pending = 0, future = 0, total = 0;
+      let done = 0, leave = 0, transfer = 0, other = 0, miss = 0, pending = 0, future = 0, total = 0;
 
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(y, m, day);
@@ -1569,27 +1964,23 @@
         const items = [];
 
         for (const slot of SLOTS) {
-          const name = (grid[slot.id]?.[label] || "").trim();
-          if (!name) continue;
-          const key = cellKey(slot.id, label);
-          const status = classStatus(date, getEntry(weekMap, key));
+          const course = effectiveCourse(slot.id, label, wId);
+          if (!course) continue;
+          const status = classStatus(date, getEntry(weekMap, course.key));
           total += 1;
           if (status === "done") done += 1;
           else if (status === "leave") leave += 1;
           else if (status === "transfer") transfer += 1;
+          else if (status === "other") other += 1;
           else if (status === "miss") miss += 1;
           else if (status === "pending") pending += 1;
           else future += 1;
 
           items.push({
-            slotId: slot.id,
-            period: slot.period,
-            time: slot.time,
-            name,
+            ...course,
             status,
-            key,
-            weekId: wId,
             dayLabel: label,
+            weekId: wId,
           });
         }
 
@@ -1612,7 +2003,7 @@
         });
       }
 
-      return { days, stats: { total, done, leave, transfer, miss, pending, future } };
+      return { days, stats: { total, done, leave, transfer, other, miss, pending, future } };
     }
 
     function renderMonthView() {
@@ -1621,13 +2012,14 @@
       const data = buildMonthRecords(y, m);
       const s = data.stats;
       document.getElementById("monthMeta").textContent =
-        "共 " + s.total + " 节 · 已上 " + s.done + " · 请假 " + s.leave + " · 调课 " + s.transfer + " · 未上 " + s.miss;
+        "共 " + s.total + " 节 · 已上 " + s.done + " · 请假 " + s.leave +
+        " · 调课 " + s.transfer + " · 其他 " + s.other + " · 未上 " + s.miss;
 
       document.getElementById("monthSummary").innerHTML =
         '<div class="month-stat done"><b>' + s.done + '</b><span>已上</span></div>' +
         '<div class="month-stat miss"><b>' + s.miss + '</b><span>未上</span></div>' +
         '<div class="month-stat"><b>' + s.leave + '</b><span>请假</span></div>' +
-        '<div class="month-stat"><b>' + s.transfer + '</b><span>调课</span></div>';
+        '<div class="month-stat"><b>' + (s.transfer + s.other) + '</b><span>调课/其他</span></div>';
 
       document.querySelectorAll("#monthFilters button").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.filter === monthFilter);
@@ -1685,7 +2077,7 @@
 
     function saveSchedule() {
       document.querySelectorAll("#schedule .slot").forEach((el) => {
-        const raw = el.textContent.replace(/\s*(✓|假|调)\s*$/, "").trim();
+        const raw = el.textContent.replace(/\s*(✓|假|调|他)\s*$/, "").trim();
         grid[el.dataset.slot][el.dataset.day] = raw;
       });
       saveGrid();
@@ -1707,6 +2099,7 @@
         days: DAYS,
         grid,
         doneByWeek,
+        weekOverrides,
         weekGoalPercent,
         viewWeekId,
         exportedAt: new Date().toISOString(),
@@ -1803,6 +2196,23 @@
       saveWeekGoal(weekGoalPercent);
       updateGoalCard();
       toast("已保存周目标 " + weekGoalPercent + "%");
+    });
+
+    document.getElementById("btnCloseAction").addEventListener("click", closeActionSheet);
+    document.getElementById("actionSheet").addEventListener("click", (e) => {
+      if (e.target.id === "actionSheet") closeActionSheet();
+    });
+    document.getElementById("btnActLeave").addEventListener("click", () => setSpecialStatus("leave"));
+    document.getElementById("btnActTransfer").addEventListener("click", openTransferPicker);
+    document.getElementById("btnActOther").addEventListener("click", () => {
+      const note = prompt("其他说明（可留空）", getEntry(getWeekDone(), actionTarget?.key)?.note || "");
+      if (note === null) return;
+      setSpecialStatus("other", note.trim());
+    });
+    document.getElementById("btnActClear").addEventListener("click", clearSpecialStatus);
+    document.getElementById("btnCloseTransfer").addEventListener("click", closeTransferSheet);
+    document.getElementById("transferSheet").addEventListener("click", (e) => {
+      if (e.target.id === "transferSheet") closeTransferSheet();
     });
 
     document.addEventListener("visibilitychange", () => {
