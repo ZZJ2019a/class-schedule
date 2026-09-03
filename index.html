@@ -1456,10 +1456,9 @@
       if (scheduleMode === "outside") {
         if (!ALL_DAYS.includes(selectedDay)) selectedDay = todayDayLabel();
         document.getElementById("tapHint").textContent =
-          "校外课表：按月维护 · 点课程打卡 · 「编辑课表」可增删任意天/时段";
-        editOutsideMonth = monthKeyFromDate(dateOfViewDay(selectedDay === "日" ? "一" : selectedDay));
+          "校外课表：点上方星期切换 · 与校内一样按天查看 · 「编辑课表」可增删";
+        editOutsideMonth = outsideMonthKeyForWeek(viewWeekId);
         if (viewWeekId === weekId()) {
-          editOutsideMonth = monthKeyFromDate(new Date());
           selectedDay = todayDayLabel();
         }
       } else {
@@ -1581,12 +1580,16 @@
     }
 
     function newOutsideId() {
-      return "o" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+      return "o" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    // 一周跨月时，整周统一用「周四所在月」的校外课表，避免只显示一半
+    function outsideMonthKeyForWeek(week = viewWeekId) {
+      return monthKeyFromDate(dateOfViewDay("四", week));
     }
 
     function outsideItemsForDay(day, week = viewWeekId) {
-      const date = dateOfViewDay(day, week);
-      const mk = monthKeyFromDate(date);
+      const mk = outsideMonthKeyForWeek(week);
       return getOutsideMonth(mk)
         .filter((item) => item.day === day && String(item.name || "").trim())
         .slice()
@@ -1894,8 +1897,9 @@
     function effectiveCourse(slotId, day, week = viewWeekId, mode = scheduleMode) {
       const key = cellKey(slotId, day);
       const ov = getWeekOverride(week)[key];
-      const date = dateOfViewDay(day, week);
-      const mk = monthKeyFromDate(date);
+      const mk = mode === "outside" || String(slotId).startsWith("o") || String(slotId).startsWith("w")
+        ? outsideMonthKeyForWeek(week)
+        : monthKeyFromDate(dateOfViewDay(day, week));
 
       if (ov && ov.removed) return null;
       if (ov && ov.name) {
@@ -2335,36 +2339,11 @@
       const map = getWeekDone();
       root.innerHTML = "";
 
-      if (scheduleMode === "outside") {
-        let any = false;
-        const today = todayDayLabel();
-        for (const day of ALL_DAYS) {
-          const list = coursesOf(day);
-          if (!list.length) continue;
-          any = true;
-          const group = document.createElement("section");
-          group.className = "day-group" + (day === today && viewWeekId === weekId() ? " today" : "");
-          const title = document.createElement("div");
-          title.className = "day-group-title";
-          title.innerHTML =
-            "<span>" + DAY_FULL[day] + (day === selectedDay ? " · 当前" : "") + "</span>" +
-            '<span class="sub">' + list.length + " 节</span>";
-          group.appendChild(title);
-          for (const item of list) {
-            item.day = day;
-            group.appendChild(renderClassCard(item, map));
-          }
-          root.appendChild(group);
-        }
-        if (!any) {
-          root.innerHTML = '<div class="empty-day">本周还没有校外课<br/>点底部「编辑课表」按星期添加</div>';
-        }
-        return;
-      }
-
       const list = coursesOf(selectedDay);
       if (!list.length) {
-        root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
+        root.innerHTML = scheduleMode === "outside"
+          ? '<div class="empty-day">' + DAY_FULL[selectedDay] + "没有校外课<br/>可点其他星期查看，或底部「编辑课表」添加</div>"
+          : '<div class="empty-day">这一天没有安排课程</div>';
         return;
       }
       for (const item of list) {
@@ -2536,7 +2515,7 @@
       selectedDay = scheduleMode === "outside"
         ? todayDayLabel()
         : (todayDayLabel() === "日" ? "一" : todayDayLabel());
-      if (scheduleMode === "outside") editOutsideMonth = monthKeyFromDate(new Date());
+      if (scheduleMode === "outside") editOutsideMonth = outsideMonthKeyForWeek(viewWeekId);
       render();
       toast(scheduleMode === "outside" ? "已回到今天（校外课表）" : "已回到今天");
     }
@@ -2550,11 +2529,10 @@
         selectedDay = scheduleMode === "outside"
           ? todayDayLabel()
           : (todayDayLabel() === "日" ? "一" : todayDayLabel());
-        if (scheduleMode === "outside") editOutsideMonth = monthKeyFromDate(new Date());
       } else {
         selectedDay = "一";
-        editOutsideMonth = monthKeyFromDate(weekIdToDate(viewWeekId));
       }
+      if (scheduleMode === "outside") editOutsideMonth = outsideMonthKeyForWeek(viewWeekId);
       render();
     }
 
