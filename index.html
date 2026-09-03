@@ -459,13 +459,27 @@
     .month-stat.done b { color: var(--done); }
     .month-stat.miss b { color: var(--danger); }
 
-    .month-filters {
+    .month-compare {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      border: 1px solid #c5dde2;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: var(--header);
+    }
+
+    .month-compare strong { font-weight: 700; }
+
+    .month-kind-filters {
       display: flex;
       gap: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       flex-wrap: wrap;
     }
 
+    .month-kind-filters button,
     .month-filters button {
       font: inherit;
       border: 1px solid var(--line);
@@ -475,10 +489,83 @@
       cursor: pointer;
     }
 
+    .month-kind-filters button.active,
     .month-filters button.active {
       background: var(--header);
       border-color: var(--header);
       color: #fff;
+    }
+
+    .month-filters {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .day-group {
+      margin-bottom: 14px;
+    }
+
+    .day-group-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 8px;
+      padding: 0 2px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--header);
+    }
+
+    .day-group-title .sub {
+      font-weight: 500;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .day-group.today .day-group-title { color: var(--accent); }
+
+    .outside-day-block {
+      margin-bottom: 14px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed var(--line);
+    }
+
+    .outside-day-block:last-child { border-bottom: 0; }
+
+    .outside-day-title {
+      margin: 0 0 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--header);
+    }
+
+    .outside-import-banner {
+      display: none;
+      margin: 0 0 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #fff7e8;
+      border: 1px solid #efd2a0;
+      color: #6a4b12;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .outside-import-banner.show { display: block; }
+
+    .outside-import-banner button {
+      margin-top: 8px;
+      font: inherit;
+      font-weight: 700;
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: var(--header);
+      color: #fff;
+      cursor: pointer;
     }
 
     .month-list {
@@ -1117,8 +1204,14 @@
         </div>
       </div>
       <div class="month-summary" id="monthSummary"></div>
+      <div class="month-compare" id="monthCompare"></div>
+      <div class="month-kind-filters" id="monthKindFilters">
+        <button type="button" data-kind="all" class="active">全部</button>
+        <button type="button" data-kind="school">只看校内</button>
+        <button type="button" data-kind="outside">只看校外</button>
+      </div>
       <div class="month-filters" id="monthFilters">
-        <button type="button" data-filter="all" class="active">全部</button>
+        <button type="button" data-filter="all" class="active">状态·全部</button>
         <button type="button" data-filter="done">已上</button>
         <button type="button" data-filter="leave">请假</button>
         <button type="button" data-filter="transfer">调课</button>
@@ -1170,6 +1263,10 @@
             <button type="button" id="btnImportOutsidePrev">从上月导入</button>
           </div>
           <p class="hint" style="margin-top:0;">本月内每周重复：可选周一至周日、任意时间段。下个月可点「从上月导入」。</p>
+          <div class="outside-import-banner" id="outsideImportBanner">
+            <div id="outsideImportText">本月还没有校外课，检测到上月有课表。</div>
+            <button type="button" id="btnImportOutsideBanner">从上月导入</button>
+          </div>
           <div id="outsideRows"></div>
           <button type="button" id="btnAddOutside" style="margin-top:4px;">添加一节校外课</button>
         </div>
@@ -1505,25 +1602,84 @@
       renderOutsideEditor();
     }
 
-    function importOutsideFromPrevMonth() {
+    function importOutsideFromPrevMonth(opts = {}) {
       const prevKey = shiftMonthKey(editOutsideMonth, -1);
-      const prev = outsideByMonth[prevKey] || [];
-      if (!prev.length) {
+      const prev = (outsideByMonth[prevKey] || []).filter((x) => String(x.name || "").trim() || x.start);
+      const namedPrev = (outsideByMonth[prevKey] || []).filter((x) => String(x.name || "").trim());
+      if (!namedPrev.length && !(outsideByMonth[prevKey] || []).length) {
         toast(formatMonthKey(prevKey) + "没有校外课可导入");
-        return;
+        return false;
       }
+      const source = namedPrev.length ? namedPrev : (outsideByMonth[prevKey] || []);
       const cur = getOutsideMonth(editOutsideMonth);
-      if (cur.some((x) => String(x.name || "").trim()) &&
+      const curNamed = cur.some((x) => String(x.name || "").trim());
+      if (curNamed && !opts.force &&
           !confirm("将覆盖「" + formatMonthKey(editOutsideMonth) + "」现有校外课，从上月导入？")) {
-        return;
+        return false;
       }
-      outsideByMonth[editOutsideMonth] = prev.map((item, idx) => normalizeOutsideItem({
+      if (!curNamed && !opts.silentConfirm && opts.ask !== false) {
+        // banner / openSheet already confirmed or soft prompt
+      }
+      outsideByMonth[editOutsideMonth] = source.map((item, idx) => normalizeOutsideItem({
         ...item,
         id: newOutsideId() + idx,
       }, idx));
+      sortOutsideMonthList(editOutsideMonth);
       saveOutsideByMonth();
       renderOutsideEditor();
       toast("已从 " + formatMonthKey(prevKey) + " 导入");
+      return true;
+    }
+
+    function outsideMonthHasNamed(monthKey) {
+      return (outsideByMonth[monthKey] || []).some((x) => String(x.name || "").trim());
+    }
+
+    function sortOutsideMonthList(monthKey = editOutsideMonth) {
+      const list = getOutsideMonth(monthKey);
+      list.sort((a, b) => {
+        const di = ALL_DAYS.indexOf(a.day) - ALL_DAYS.indexOf(b.day);
+        if (di !== 0) return di;
+        const ra = parseSlotRange(outsideTimeLabel(a));
+        const rb = parseSlotRange(outsideTimeLabel(b));
+        return (ra?.startMin || 0) - (rb?.startMin || 0);
+      });
+      return list;
+    }
+
+    function syncOutsideEditorFromDom() {
+      const list = getOutsideMonth(editOutsideMonth);
+      const byId = Object.fromEntries(list.map((item) => [item.id, item]));
+      document.querySelectorAll("#outsideRows .outside-row").forEach((row) => {
+        const id = row.dataset.id;
+        const item = byId[id];
+        if (!item) return;
+        const day = row.querySelector('select[data-f="day"]');
+        const name = row.querySelector('input[data-f="name"]');
+        const start = row.querySelector('input[data-f="start"]');
+        const end = row.querySelector('input[data-f="end"]');
+        if (day) item.day = day.value;
+        if (name) item.name = name.value.trim();
+        if (start) item.start = normalizeHm(start.value);
+        if (end) item.end = normalizeHm(end.value);
+      });
+      sortOutsideMonthList(editOutsideMonth);
+    }
+
+    function maybePromptImportOutside() {
+      const banner = document.getElementById("outsideImportBanner");
+      if (!banner) return;
+      const curEmpty = !outsideMonthHasNamed(editOutsideMonth);
+      const prevKey = shiftMonthKey(editOutsideMonth, -1);
+      const prevHas = outsideMonthHasNamed(prevKey);
+      if (curEmpty && prevHas) {
+        document.getElementById("outsideImportText").textContent =
+          "「" + formatMonthKey(editOutsideMonth) + "」还没有校外课，检测到「" +
+          formatMonthKey(prevKey) + "」有课表，可以一键导入。";
+        banner.classList.add("show");
+      } else {
+        banner.classList.remove("show");
+      }
     }
 
     function loadDoneByWeek() {
@@ -1712,6 +1868,7 @@
     const nowInit = new Date();
     let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() };
     let monthFilter = "all";
+    let monthKindFilter = "all";
     let nextTimer = null;
     let actionTarget = null;
     ensureCurrentWeekBucket();
@@ -2115,74 +2272,104 @@
       toast("已调到 " + describeSlot(toSlotId, toDay));
     }
 
+    function renderClassCard(item, map) {
+      const st = entryStatus(map, item.key);
+      const entry = getEntry(map, item.key);
+      const card = document.createElement("div");
+      card.className = "class-card" + (st ? " " + st : "");
+
+      const period = item.period ? "第" + item.period + "节 · " : "";
+      let note = "";
+      if (st === "transfer" && entry && entry.to) {
+        const t = parseCellKey(entry.to);
+        note = '<div class="transfer-note">已调至 ' + escapeHtml(describeSlot(t.slotId, t.day)) + "</div>";
+      } else if (item.isMovedIn && item.fromKey) {
+        const f = parseCellKey(item.fromKey);
+        note = '<div class="transfer-note">由 ' + escapeHtml(describeSlot(f.slotId, f.day)) + " 调入</div>";
+      } else if (st === "other" && entry && entry.note) {
+        note = '<div class="transfer-note">' + escapeHtml(entry.note) + "</div>";
+      }
+
+      let mark = '<div class="check" aria-hidden="true"></div>';
+      if (st === "done") mark = '<div class="check" aria-hidden="true">✓</div>';
+      else if (st === "leave") mark = '<div class="check leave-mark" aria-hidden="true">请假</div>';
+      else if (st === "transfer") mark = '<div class="check transfer-mark" aria-hidden="true">调课</div>';
+      else if (st === "other") mark = '<div class="check other-mark" aria-hidden="true">其他</div>';
+
+      const main = document.createElement("button");
+      main.type = "button";
+      main.className = "main-hit";
+      main.innerHTML =
+        '<div class="class-meta">' +
+          '<div class="class-time">' + period + item.time + "</div>" +
+          '<div class="class-name ' + tintFor(item.name) + '">' + escapeHtml(item.name) + "</div>" +
+          note +
+        "</div>";
+      main.addEventListener("click", () => toggleAttend(item.key));
+
+      const markWrap = document.createElement("button");
+      markWrap.type = "button";
+      markWrap.className = "main-hit";
+      markWrap.style.width = "auto";
+      markWrap.innerHTML = mark;
+      markWrap.addEventListener("click", () => toggleAttend(item.key));
+
+      const more = document.createElement("button");
+      more.type = "button";
+      more.className = "more-btn";
+      more.setAttribute("aria-label", "更多");
+      more.textContent = "⋯";
+      more.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openActionSheet(item);
+      });
+
+      card.appendChild(main);
+      card.appendChild(markWrap);
+      card.appendChild(more);
+      return card;
+    }
+
     function renderList() {
       const root = document.getElementById("classList");
-      const list = coursesOf(selectedDay);
       const map = getWeekDone();
       root.innerHTML = "";
+
+      if (scheduleMode === "outside") {
+        let any = false;
+        const today = todayDayLabel();
+        for (const day of ALL_DAYS) {
+          const list = coursesOf(day);
+          if (!list.length) continue;
+          any = true;
+          const group = document.createElement("section");
+          group.className = "day-group" + (day === today && viewWeekId === weekId() ? " today" : "");
+          const title = document.createElement("div");
+          title.className = "day-group-title";
+          title.innerHTML =
+            "<span>" + DAY_FULL[day] + (day === selectedDay ? " · 当前" : "") + "</span>" +
+            '<span class="sub">' + list.length + " 节</span>";
+          group.appendChild(title);
+          for (const item of list) {
+            item.day = day;
+            group.appendChild(renderClassCard(item, map));
+          }
+          root.appendChild(group);
+        }
+        if (!any) {
+          root.innerHTML = '<div class="empty-day">本周还没有校外课<br/>点底部「编辑课表」按星期添加</div>';
+        }
+        return;
+      }
+
+      const list = coursesOf(selectedDay);
       if (!list.length) {
-        root.innerHTML = scheduleMode === "outside"
-          ? '<div class="empty-day">这一天没有校外课<br/>点底部「编辑课表」添加（可任选周一至周日）</div>'
-          : '<div class="empty-day">这一天没有安排课程</div>';
+        root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
         return;
       }
       for (const item of list) {
         item.day = selectedDay;
-        const st = entryStatus(map, item.key);
-        const entry = getEntry(map, item.key);
-        const card = document.createElement("div");
-        card.className = "class-card" + (st ? " " + st : "");
-
-        const period = item.period ? "第" + item.period + "节 · " : "";
-        let note = "";
-        if (st === "transfer" && entry && entry.to) {
-          const t = parseCellKey(entry.to);
-          note = '<div class="transfer-note">已调至 ' + escapeHtml(describeSlot(t.slotId, t.day)) + "</div>";
-        } else if (item.isMovedIn && item.fromKey) {
-          const f = parseCellKey(item.fromKey);
-          note = '<div class="transfer-note">由 ' + escapeHtml(describeSlot(f.slotId, f.day)) + " 调入</div>";
-        } else if (st === "other" && entry && entry.note) {
-          note = '<div class="transfer-note">' + escapeHtml(entry.note) + "</div>";
-        }
-
-        let mark = '<div class="check" aria-hidden="true"></div>';
-        if (st === "done") mark = '<div class="check" aria-hidden="true">✓</div>';
-        else if (st === "leave") mark = '<div class="check leave-mark" aria-hidden="true">请假</div>';
-        else if (st === "transfer") mark = '<div class="check transfer-mark" aria-hidden="true">调课</div>';
-        else if (st === "other") mark = '<div class="check other-mark" aria-hidden="true">其他</div>';
-
-        const main = document.createElement("button");
-        main.type = "button";
-        main.className = "main-hit";
-        main.innerHTML =
-          '<div class="class-meta">' +
-            '<div class="class-time">' + period + item.time + "</div>" +
-            '<div class="class-name ' + tintFor(item.name) + '">' + escapeHtml(item.name) + "</div>" +
-            note +
-          "</div>";
-        main.addEventListener("click", () => toggleAttend(item.key));
-
-        const markWrap = document.createElement("button");
-        markWrap.type = "button";
-        markWrap.className = "main-hit";
-        markWrap.style.width = "auto";
-        markWrap.innerHTML = mark;
-        markWrap.addEventListener("click", () => toggleAttend(item.key));
-
-        const more = document.createElement("button");
-        more.type = "button";
-        more.className = "more-btn";
-        more.setAttribute("aria-label", "更多");
-        more.textContent = "⋯";
-        more.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openActionSheet(item);
-        });
-
-        card.appendChild(main);
-        card.appendChild(markWrap);
-        card.appendChild(more);
-        root.appendChild(card);
+        root.appendChild(renderClassCard(item, map));
       }
     }
 
@@ -2267,12 +2454,15 @@
 
     function renderOutsideEditor() {
       document.getElementById("outsideMonthTitle").textContent = formatMonthKey(editOutsideMonth) + "校外课";
+      maybePromptImportOutside();
       const root = document.getElementById("outsideRows");
       root.innerHTML = "";
-      const list = getOutsideMonth(editOutsideMonth);
-      list.forEach((item, idx) => {
+      const list = sortOutsideMonthList(editOutsideMonth);
+
+      const appendRow = (item) => {
         const row = document.createElement("div");
         row.className = "outside-row";
+        row.dataset.id = item.id;
         const dayOpts = ALL_DAYS.map((d) =>
           '<option value="' + d + '"' + (item.day === d ? " selected" : "") + ">" + DAY_FULL[d] + "</option>"
         ).join("");
@@ -2281,26 +2471,47 @@
           '<label class="name-field">课程名<input data-f="name" type="text" placeholder="例如：校外辅导" value="' + escapeHtml(item.name) + '" /></label>' +
           '<label>开始<input data-f="start" type="time" value="' + escapeHtml(normalizeHm(item.start)) + '" /></label>' +
           '<label>结束<input data-f="end" type="time" value="' + escapeHtml(normalizeHm(item.end)) + '" /></label>' +
-          '<button type="button" class="del-btn" data-del="' + idx + '">删除</button>';
+          '<button type="button" class="del-btn">删除</button>';
         row.querySelectorAll("input, select").forEach((input) => {
           const sync = () => {
-            const field = input.dataset.f;
-            if (field === "name") list[idx].name = input.value.trim();
-            if (field === "start") list[idx].start = normalizeHm(input.value);
-            if (field === "end") list[idx].end = normalizeHm(input.value);
-            if (field === "day") list[idx].day = input.value;
+            syncOutsideEditorFromDom();
+            if (input.dataset.f === "day" || input.dataset.f === "start" || input.dataset.f === "end") {
+              renderOutsideEditor();
+            } else {
+              maybePromptImportOutside();
+            }
           };
           input.addEventListener("change", sync);
-          input.addEventListener("input", sync);
+          if (input.dataset.f === "name") input.addEventListener("input", () => {
+            const hit = getOutsideMonth(editOutsideMonth).find((x) => x.id === item.id);
+            if (hit) hit.name = input.value.trim();
+            maybePromptImportOutside();
+          });
         });
-        row.querySelector("[data-del]").addEventListener("click", () => {
-          list.splice(idx, 1);
+        row.querySelector(".del-btn").addEventListener("click", () => {
+          const arr = getOutsideMonth(editOutsideMonth);
+          const i = arr.findIndex((x) => x.id === item.id);
+          if (i >= 0) arr.splice(i, 1);
           renderOutsideEditor();
         });
-        root.appendChild(row);
-      });
+        return row;
+      };
+
+      for (const day of ALL_DAYS) {
+        const dayItems = list.filter((item) => item.day === day);
+        if (!dayItems.length) continue;
+        const block = document.createElement("div");
+        block.className = "outside-day-block";
+        const title = document.createElement("div");
+        title.className = "outside-day-title";
+        title.textContent = DAY_FULL[day] + " · " + dayItems.length + " 节";
+        block.appendChild(title);
+        for (const item of dayItems) block.appendChild(appendRow(item));
+        root.appendChild(block);
+      }
     }
 
+    function render() {
     function render() {
       updateWeekLabel();
       updateNextCard();
@@ -2352,6 +2563,17 @@
       document.getElementById("goalInput").value = String(weekGoalPercent);
       document.getElementById("sheet").classList.add("open");
       renderTable();
+      if (scheduleMode === "outside") {
+        const prevKey = shiftMonthKey(editOutsideMonth, -1);
+        if (!outsideMonthHasNamed(editOutsideMonth) && outsideMonthHasNamed(prevKey)) {
+          if (confirm(
+            "「" + formatMonthKey(editOutsideMonth) + "」还没有校外课，\n" +
+            "是否从「" + formatMonthKey(prevKey) + "」导入？"
+          )) {
+            importOutsideFromPrevMonth({ ask: false, force: true });
+          }
+        }
+      }
     }
 
     function closeSheet() {
@@ -2399,10 +2621,33 @@
       })[status] || status;
     }
 
+    function emptyKindStats() {
+      return { total: 0, done: 0, leave: 0, transfer: 0, other: 0, miss: 0, pending: 0, future: 0, handled: 0, rate: 0 };
+    }
+
+    function finalizeKindStats(s) {
+      s.handled = s.done + s.leave + s.transfer + s.other;
+      s.rate = s.total ? Math.round((s.handled / s.total) * 100) : 0;
+      return s;
+    }
+
     function buildMonthRecords(y, m) {
       const daysInMonth = new Date(y, m + 1, 0).getDate();
       const days = [];
       let done = 0, leave = 0, transfer = 0, other = 0, miss = 0, pending = 0, future = 0, total = 0;
+      const schoolStats = emptyKindStats();
+      const outsideStats = emptyKindStats();
+
+      const bump = (bucket, status) => {
+        bucket.total += 1;
+        if (status === "done") bucket.done += 1;
+        else if (status === "leave") bucket.leave += 1;
+        else if (status === "transfer") bucket.transfer += 1;
+        else if (status === "other") bucket.other += 1;
+        else if (status === "miss") bucket.miss += 1;
+        else if (status === "pending") bucket.pending += 1;
+        else bucket.future += 1;
+      };
 
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(y, m, day);
@@ -2423,6 +2668,7 @@
           else if (status === "miss") miss += 1;
           else if (status === "pending") pending += 1;
           else future += 1;
+          bump(course.kind === "outside" ? outsideStats : schoolStats, status);
           items.push({ ...course, status, dayLabel: label, weekId: wId });
         };
 
@@ -2436,6 +2682,8 @@
 
         if (!items.length) continue;
         const filtered = items.filter((it) => {
+          if (monthKindFilter === "school" && it.kind !== "school") return false;
+          if (monthKindFilter === "outside" && it.kind !== "outside") return false;
           if (monthFilter === "all") return true;
           if (monthFilter === "pending") return it.status === "pending" || it.status === "future";
           return it.status === monthFilter;
@@ -2453,7 +2701,12 @@
         });
       }
 
-      return { days, stats: { total, done, leave, transfer, other, miss, pending, future } };
+      return {
+        days,
+        stats: { total, done, leave, transfer, other, miss, pending, future },
+        schoolStats: finalizeKindStats(schoolStats),
+        outsideStats: finalizeKindStats(outsideStats),
+      };
     }
 
     function renderMonthView() {
@@ -2461,6 +2714,8 @@
       document.getElementById("monthTitle").textContent = y + "年" + (m + 1) + "月";
       const data = buildMonthRecords(y, m);
       const s = data.stats;
+      const ss = data.schoolStats;
+      const os = data.outsideStats;
       document.getElementById("monthMeta").textContent =
         "共 " + s.total + " 节 · 已上 " + s.done + " · 请假 " + s.leave +
         " · 调课 " + s.transfer + " · 其他 " + s.other + " · 未上 " + s.miss;
@@ -2468,9 +2723,31 @@
       document.getElementById("monthSummary").innerHTML =
         '<div class="month-stat done"><b>' + s.done + '</b><span>已上</span></div>' +
         '<div class="month-stat miss"><b>' + s.miss + '</b><span>未上</span></div>' +
-        '<div class="month-stat"><b>' + s.leave + '</b><span>请假</span></div>' +
-        '<div class="month-stat"><b>' + (s.transfer + s.other) + '</b><span>调课/其他</span></div>';
+        '<div class="month-stat"><b>' + ss.rate + '%</b><span>校内完成率<br/>' + ss.handled + '/' + ss.total + '</span></div>' +
+        '<div class="month-stat"><b>' + os.rate + '%</b><span>校外完成率<br/>' + os.handled + '/' + os.total + '</span></div>';
 
+      const prevDate = new Date(y, m - 1, 1);
+      const prevData = buildMonthRecords(prevDate.getFullYear(), prevDate.getMonth());
+      const curHandled = s.done + s.leave + s.transfer + s.other;
+      const curRate = s.total ? Math.round((curHandled / s.total) * 100) : 0;
+      const prevS = prevData.stats;
+      const prevHandled = prevS.done + prevS.leave + prevS.transfer + prevS.other;
+      const prevRate = prevS.total ? Math.round((prevHandled / prevS.total) * 100) : 0;
+      const diff = curRate - prevRate;
+      const diffText = !prevS.total && !s.total
+        ? "本月与上月都没有课程记录"
+        : (!prevS.total
+          ? "上月无课，本月完成率 " + curRate + "%"
+          : ("本月 " + curRate + "% · 上月 " + prevRate + "% · " +
+            (diff === 0 ? "持平" : (diff > 0 ? "高 " + diff + " 个百分点" : "低 " + Math.abs(diff) + " 个百分点"))));
+      document.getElementById("monthCompare").innerHTML =
+        "<strong>月对比</strong>：" + diffText +
+        "<br/>校内 " + ss.rate + "%（" + ss.handled + "/" + ss.total + "） · 校外 " +
+        os.rate + "%（" + os.handled + "/" + os.total + "）";
+
+      document.querySelectorAll("#monthKindFilters button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.kind === monthKindFilter);
+      });
       document.querySelectorAll("#monthFilters button").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.filter === monthFilter);
       });
@@ -2485,10 +2762,11 @@
         const headRight = "处理 " + day.handledCount + "/" + day.totalCount;
         const itemsHtml = day.items.map((it) => {
           const period = it.period ? "第" + it.period + "节 · " : "";
+          const kindTag = it.kind === "outside" ? " · 校外" : " · 校内";
           return (
             '<div class="month-item">' +
               '<div>' +
-                '<div class="time">' + period + escapeHtml(it.time) + '</div>' +
+                '<div class="time">' + period + escapeHtml(it.time) + kindTag + '</div>' +
                 '<div class="name ' + tintFor(it.name) + '">' + escapeHtml(it.name) + '</div>' +
               '</div>' +
               '<span class="status-pill ' + it.status + '">' + statusLabel(it.status) + '</span>' +
@@ -2507,6 +2785,7 @@
       }).join("");
     }
 
+    function openMonthSheet() {
     function openMonthSheet() {
       const now = new Date();
       viewMonth = { y: now.getFullYear(), m: now.getMonth() };
@@ -2650,7 +2929,10 @@
     });
     document.getElementById("btnPrevOutsideMonth").addEventListener("click", () => shiftOutsideMonth(-1));
     document.getElementById("btnNextOutsideMonth").addEventListener("click", () => shiftOutsideMonth(1));
-    document.getElementById("btnImportOutsidePrev").addEventListener("click", importOutsideFromPrevMonth);
+    document.getElementById("btnImportOutsidePrev").addEventListener("click", () => importOutsideFromPrevMonth());
+    document.getElementById("btnImportOutsideBanner").addEventListener("click", () => {
+      importOutsideFromPrevMonth({ force: true });
+    });
     document.getElementById("btnMonth").addEventListener("click", openMonthSheet);
     document.getElementById("btnMonthDesk").addEventListener("click", openMonthSheet);
     document.getElementById("btnCloseMonth").addEventListener("click", closeMonthSheet);
@@ -2663,6 +2945,12 @@
       const btn = e.target.closest("button[data-filter]");
       if (!btn) return;
       monthFilter = btn.dataset.filter;
+      renderMonthView();
+    });
+    document.getElementById("monthKindFilters").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-kind]");
+      if (!btn) return;
+      monthKindFilter = btn.dataset.kind;
       renderMonthView();
     });
     document.getElementById("btnClear").addEventListener("click", () => clearWeekDone(true));
