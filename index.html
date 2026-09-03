@@ -917,9 +917,9 @@
       opacity: 0.85;
     }
 
-    .weekend-row {
+    .outside-row {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr auto;
+      grid-template-columns: 0.7fr 1.2fr 0.85fr 0.85fr auto;
       gap: 8px;
       align-items: end;
       margin-bottom: 10px;
@@ -929,25 +929,27 @@
       background: #fff;
     }
 
-    .weekend-row label {
+    .outside-row label {
       display: grid;
       gap: 4px;
       font-size: 0.75rem;
       color: var(--muted);
     }
 
-    .weekend-row label.name-field { grid-column: 1 / -2; }
+    .outside-row label.name-field { grid-column: 1 / -2; }
 
-    .weekend-row input {
+    .outside-row input,
+    .outside-row select {
       width: 100%;
       box-sizing: border-box;
       font: inherit;
       padding: 8px 10px;
       border-radius: 10px;
       border: 1px solid var(--line);
+      background: #fff;
     }
 
-    .weekend-row .del-btn {
+    .outside-row .del-btn {
       border: 0;
       background: #fdecea;
       color: var(--danger);
@@ -959,11 +961,36 @@
       height: 40px;
     }
 
-    @media (max-width: 520px) {
-      .weekend-row {
+    .outside-month-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+
+    .outside-month-bar strong {
+      flex: 1;
+      min-width: 120px;
+      font-size: 0.95rem;
+    }
+
+    .outside-month-bar button {
+      font: inherit;
+      font-weight: 600;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    @media (max-width: 560px) {
+      .outside-row {
         grid-template-columns: 1fr 1fr auto;
       }
-      .weekend-row label.name-field { grid-column: 1 / -1; }
+      .outside-row label.name-field { grid-column: 1 / -1; }
+      .outside-row label.day-field { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -1015,9 +1042,9 @@
         校内课表
         <span class="sub-label">周一至周六 · 40分钟</span>
       </button>
-      <button type="button" id="btnModeWeekend" data-mode="weekend" role="tab" aria-selected="false">
-        周末课表
-        <span class="sub-label">周日校外 · 可自定</span>
+      <button type="button" id="btnModeOutside" data-mode="outside" role="tab" aria-selected="false">
+        校外课表
+        <span class="sub-label">任意天 · 按月维护</span>
       </button>
     </div>
 
@@ -1135,10 +1162,16 @@
             <tbody></tbody>
           </table>
         </div>
-        <div id="weekendEditor" hidden>
-          <p class="hint" style="margin-top:0;">维护周日校外课：课程名、开始与结束时间。课程名为空表示不上这节。</p>
-          <div id="weekendRows"></div>
-          <button type="button" id="btnAddWeekend" style="margin-top:4px;">添加一节周末课</button>
+        <div id="outsideEditor" hidden>
+          <div class="outside-month-bar">
+            <button type="button" id="btnPrevOutsideMonth" title="上一月">‹</button>
+            <strong id="outsideMonthTitle">本月校外课</strong>
+            <button type="button" id="btnNextOutsideMonth" title="下一月">›</button>
+            <button type="button" id="btnImportOutsidePrev">从上月导入</button>
+          </div>
+          <p class="hint" style="margin-top:0;">本月内每周重复：可选周一至周日、任意时间段。下个月可点「从上月导入」。</p>
+          <div id="outsideRows"></div>
+          <button type="button" id="btnAddOutside" style="margin-top:4px;">添加一节校外课</button>
         </div>
       </div>
       <p class="hint" id="editHint">长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。</p>
@@ -1150,7 +1183,7 @@
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
   <script>
     const SCHOOL_DAYS = ["一", "二", "三", "四", "五", "六"];
-    const WEEKEND_DAY = "日";
+    const ALL_DAYS = ["一", "二", "三", "四", "五", "六", "日"];
     const DAY_FULL = { 一: "周一", 二: "周二", 三: "周三", 四: "周四", 五: "周五", 六: "周六", 日: "周日" };
     const SLOTS = [
       { id: "p1", period: "1", time: "08:30 – 09:10" },
@@ -1180,14 +1213,9 @@
       e3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "" },
     };
 
-    // 周日校外默认空模板，用户可改名/时间/增减
-    const DEFAULT_WEEKEND = [
-      { id: "w1", name: "", start: "09:00", end: "10:30" },
-      { id: "w2", name: "", start: "14:00", end: "16:00" },
-    ];
-
     const GRID_KEY = "weekly-class-schedule-v2";
-    const WEEKEND_KEY = "weekend-sunday-schedule-v1";
+    const OUTSIDE_KEY = "outside-monthly-schedule-v1";
+    const WEEKEND_KEY_OLD = "weekend-sunday-schedule-v1";
     const DONE_KEY_OLD = "weekly-class-done-v1";
     const WEEK_KEY_OLD = "weekly-class-week-id-v1";
     const DONE_BY_WEEK_KEY = "weekly-class-done-by-week-v2";
@@ -1292,27 +1320,54 @@
     }
 
     function todayDayLabel() {
-      return SCHOOL_DAYS.concat(WEEKEND_DAY)[(new Date().getDay() + 6) % 7];
+      return ALL_DAYS[(new Date().getDay() + 6) % 7];
     }
 
-    function preferredModeForDay(day = todayDayLabel()) {
-      return day === WEEKEND_DAY ? "weekend" : "school";
+    function monthKeyFromDate(date = new Date()) {
+      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+    }
+
+    function monthKeyToDate(key) {
+      const [y, m] = key.split("-").map(Number);
+      return new Date(y, m - 1, 1);
+    }
+
+    function shiftMonthKey(key, delta) {
+      const d = monthKeyToDate(key);
+      d.setMonth(d.getMonth() + delta);
+      return monthKeyFromDate(d);
+    }
+
+    function formatMonthKey(key) {
+      const d = monthKeyToDate(key);
+      return d.getFullYear() + "年" + (d.getMonth() + 1) + "月";
+    }
+
+    function dateOfViewDay(day, week = viewWeekId) {
+      const mon = weekIdToDate(week);
+      const idx = ALL_DAYS.indexOf(day);
+      const d = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + (idx < 0 ? 0 : idx));
+      return d;
     }
 
     function setScheduleMode(mode, opts = {}) {
-      scheduleMode = mode === "weekend" ? "weekend" : "school";
+      scheduleMode = mode === "outside" ? "outside" : "school";
       document.getElementById("btnModeSchool").classList.toggle("active", scheduleMode === "school");
-      document.getElementById("btnModeWeekend").classList.toggle("active", scheduleMode === "weekend");
+      document.getElementById("btnModeOutside").classList.toggle("active", scheduleMode === "outside");
       document.getElementById("btnModeSchool").setAttribute("aria-selected", scheduleMode === "school" ? "true" : "false");
-      document.getElementById("btnModeWeekend").setAttribute("aria-selected", scheduleMode === "weekend" ? "true" : "false");
-      if (scheduleMode === "weekend") {
-        selectedDay = WEEKEND_DAY;
+      document.getElementById("btnModeOutside").setAttribute("aria-selected", scheduleMode === "outside" ? "true" : "false");
+      if (scheduleMode === "outside") {
+        if (!ALL_DAYS.includes(selectedDay)) selectedDay = todayDayLabel();
         document.getElementById("tapHint").textContent =
-          "周末课表：周日校外课 · 点课程打卡 · 可在「编辑课表」里改时间/课程名";
+          "校外课表：按月维护 · 点课程打卡 · 「编辑课表」可增删任意天/时段";
+        editOutsideMonth = monthKeyFromDate(dateOfViewDay(selectedDay === "日" ? "一" : selectedDay));
+        if (viewWeekId === weekId()) {
+          editOutsideMonth = monthKeyFromDate(new Date());
+          selectedDay = todayDayLabel();
+        }
       } else {
-        if (selectedDay === WEEKEND_DAY) {
-          selectedDay = todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel();
-          if (!SCHOOL_DAYS.includes(selectedDay)) selectedDay = "一";
+        if (!SCHOOL_DAYS.includes(selectedDay)) {
+          selectedDay = todayDayLabel() === "日" ? "一" : todayDayLabel();
         }
         document.getElementById("tapHint").textContent =
           "点课程：已上 / 未上 · 右侧「⋯」可选请假、调课、其他";
@@ -1348,7 +1403,7 @@
         const merged = structuredClone(DEFAULT_GRID);
         for (const slot of SLOTS) {
           const row = { ...(parsed[slot.id] || {}) };
-          delete row[WEEKEND_DAY];
+          delete row["日"];
           merged[slot.id] = { ...merged[slot.id], ...row };
           for (const day of SCHOOL_DAYS) {
             if (merged[slot.id][day] == null) merged[slot.id][day] = "";
@@ -1364,27 +1419,56 @@
       localStorage.setItem(GRID_KEY, JSON.stringify(grid));
     }
 
-    function loadWeekend() {
-      try {
-        const raw = localStorage.getItem(WEEKEND_KEY);
-        if (!raw) return structuredClone(DEFAULT_WEEKEND);
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return structuredClone(DEFAULT_WEEKEND);
-        return parsed
-          .map((item, idx) => ({
-            id: String(item.id || ("w" + (idx + 1))),
-            name: String(item.name || "").trim(),
-            start: normalizeHm(item.start || "09:00"),
-            end: normalizeHm(item.end || "10:30"),
-          }))
-          .filter((item) => item.id);
-      } catch {
-        return structuredClone(DEFAULT_WEEKEND);
-      }
+    function normalizeOutsideItem(item, idx = 0) {
+      const day = ALL_DAYS.includes(item.day) ? item.day : "日";
+      return {
+        id: String(item.id || ("o" + (idx + 1))),
+        day,
+        name: String(item.name || "").trim(),
+        start: normalizeHm(item.start || "09:00"),
+        end: normalizeHm(item.end || "10:30"),
+      };
     }
 
-    function saveWeekend() {
-      localStorage.setItem(WEEKEND_KEY, JSON.stringify(weekendSchedule));
+    function loadOutsideByMonth() {
+      try {
+        const raw = localStorage.getItem(OUTSIDE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const out = {};
+            for (const [k, list] of Object.entries(parsed)) {
+              if (!Array.isArray(list)) continue;
+              out[k] = list.map((item, idx) => normalizeOutsideItem(item, idx));
+            }
+            return out;
+          }
+        }
+      } catch { /* migrate below */ }
+
+      // 兼容旧版「仅周日周末课表」
+      try {
+        const old = localStorage.getItem(WEEKEND_KEY_OLD);
+        if (old) {
+          const parsed = JSON.parse(old);
+          if (Array.isArray(parsed)) {
+            const mk = monthKeyFromDate(new Date());
+            return {
+              [mk]: parsed.map((item, idx) => normalizeOutsideItem({ ...item, day: item.day || "日" }, idx)),
+            };
+          }
+        }
+      } catch { /* ignore */ }
+      return {};
+    }
+
+    function saveOutsideByMonth() {
+      localStorage.setItem(OUTSIDE_KEY, JSON.stringify(outsideByMonth));
+    }
+
+    function getOutsideMonth(monthKey = editOutsideMonth) {
+      if (!outsideByMonth[monthKey]) outsideByMonth[monthKey] = [];
+      return outsideByMonth[monthKey];
     }
 
     function normalizeHm(v) {
@@ -1395,12 +1479,51 @@
       return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
     }
 
-    function weekendTimeLabel(item) {
+    function outsideTimeLabel(item) {
       return normalizeHm(item.start) + " – " + normalizeHm(item.end);
     }
 
-    function newWeekendId() {
-      return "w" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+    function newOutsideId() {
+      return "o" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+    }
+
+    function outsideItemsForDay(day, week = viewWeekId) {
+      const date = dateOfViewDay(day, week);
+      const mk = monthKeyFromDate(date);
+      return getOutsideMonth(mk)
+        .filter((item) => item.day === day && String(item.name || "").trim())
+        .slice()
+        .sort((a, b) => {
+          const ra = parseSlotRange(outsideTimeLabel(a));
+          const rb = parseSlotRange(outsideTimeLabel(b));
+          return (ra?.startMin || 0) - (rb?.startMin || 0);
+        });
+    }
+
+    function shiftOutsideMonth(delta) {
+      editOutsideMonth = shiftMonthKey(editOutsideMonth, delta);
+      renderOutsideEditor();
+    }
+
+    function importOutsideFromPrevMonth() {
+      const prevKey = shiftMonthKey(editOutsideMonth, -1);
+      const prev = outsideByMonth[prevKey] || [];
+      if (!prev.length) {
+        toast(formatMonthKey(prevKey) + "没有校外课可导入");
+        return;
+      }
+      const cur = getOutsideMonth(editOutsideMonth);
+      if (cur.some((x) => String(x.name || "").trim()) &&
+          !confirm("将覆盖「" + formatMonthKey(editOutsideMonth) + "」现有校外课，从上月导入？")) {
+        return;
+      }
+      outsideByMonth[editOutsideMonth] = prev.map((item, idx) => normalizeOutsideItem({
+        ...item,
+        id: newOutsideId() + idx,
+      }, idx));
+      saveOutsideByMonth();
+      renderOutsideEditor();
+      toast("已从 " + formatMonthKey(prevKey) + " 导入");
     }
 
     function loadDoneByWeek() {
@@ -1485,9 +1608,12 @@
     }
 
     function describeSlot(slotId, day) {
-      if (day === WEEKEND_DAY || String(slotId).startsWith("w")) {
-        const item = weekendSchedule.find((s) => s.id === slotId);
-        if (item) return DAY_FULL[WEEKEND_DAY] + " " + weekendTimeLabel(item);
+      if (String(slotId).startsWith("o") || String(slotId).startsWith("w")) {
+        // 在各月模板里查找
+        for (const list of Object.values(outsideByMonth)) {
+          const item = (list || []).find((s) => s.id === slotId);
+          if (item) return DAY_FULL[item.day || day] + " " + outsideTimeLabel(item) + " · 校外";
+        }
       }
       const slot = SLOTS.find((s) => s.id === slotId);
       const period = slot && slot.period ? "第" + slot.period + "节 " : "";
@@ -1531,9 +1657,9 @@
     }
 
     function findNextClass(now = new Date()) {
-      const day = SCHOOL_DAYS.concat(WEEKEND_DAY)[(now.getDay() + 6) % 7];
+      const day = ALL_DAYS[(now.getDay() + 6) % 7];
       const map = getWeekDone(weekId(now));
-      const list = coursesOf(day, weekId(now)).filter((c) => entryStatus(map, c.key) !== "transfer");
+      const list = coursesOf(day, weekId(now), scheduleMode).filter((c) => entryStatus(map, c.key) !== "transfer");
       if (!list.length) return { kind: "empty" };
       const nowMin = minutesNow(now);
       const withRange = list.map((c) => ({ ...c, range: parseSlotRange(c.time) })).filter((c) => c.range);
@@ -1575,18 +1701,19 @@
     }
 
     let grid = loadGrid();
-    let weekendSchedule = loadWeekend();
+    let outsideByMonth = loadOutsideByMonth();
     let doneByWeek = loadDoneByWeek();
     let weekOverrides = loadOverrides();
     let weekGoalPercent = loadWeekGoal();
     let viewWeekId = weekId();
-    let scheduleMode = preferredModeForDay();
-    let selectedDay = scheduleMode === "weekend" ? WEEKEND_DAY : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
+    let scheduleMode = "school";
+    let editOutsideMonth = monthKeyFromDate(new Date());
+    let selectedDay = todayDayLabel() === "日" ? "一" : todayDayLabel();
     const nowInit = new Date();
     let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() };
     let monthFilter = "all";
     let nextTimer = null;
-    let actionTarget = null; // { key, slotId, day, name, time, period }
+    let actionTarget = null;
     ensureCurrentWeekBucket();
     saveDoneByWeek();
 
@@ -1594,51 +1721,61 @@
       return (grid[slotId]?.[day] || "").trim();
     }
 
-    function weekendItem(slotId) {
-      return weekendSchedule.find((s) => s.id === slotId) || null;
+    function outsideItemById(slotId, monthKey) {
+      const list = monthKey ? getOutsideMonth(monthKey) : null;
+      if (list) {
+        const hit = list.find((s) => s.id === slotId);
+        if (hit) return hit;
+      }
+      for (const arr of Object.values(outsideByMonth)) {
+        const hit = (arr || []).find((s) => s.id === slotId);
+        if (hit) return hit;
+      }
+      return null;
     }
 
-    function effectiveCourse(slotId, day, week = viewWeekId) {
+    function effectiveCourse(slotId, day, week = viewWeekId, mode = scheduleMode) {
       const key = cellKey(slotId, day);
       const ov = getWeekOverride(week)[key];
+      const date = dateOfViewDay(day, week);
+      const mk = monthKeyFromDate(date);
+
       if (ov && ov.removed) return null;
       if (ov && ov.name) {
-        const time = day === WEEKEND_DAY
-          ? (weekendItem(slotId) ? weekendTimeLabel(weekendItem(slotId)) : "")
-          : ((SLOTS.find((s) => s.id === slotId) || {}).time || "");
-        const period = day === WEEKEND_DAY
-          ? ""
-          : ((SLOTS.find((s) => s.id === slotId) || {}).period || "");
+        const item = outsideItemById(slotId, mk);
+        const isOut = !!(item || String(slotId).startsWith("o") || String(slotId).startsWith("w") || ov.kind === "outside");
         return {
           slotId,
           day,
-          period,
-          time,
+          period: isOut ? "" : ((SLOTS.find((s) => s.id === slotId) || {}).period || ""),
+          time: isOut
+            ? (item ? outsideTimeLabel(item) : (ov.time || ""))
+            : ((SLOTS.find((s) => s.id === slotId) || {}).time || ""),
           name: ov.name,
           key,
           fromKey: ov.from || null,
           isMovedIn: true,
-          kind: day === WEEKEND_DAY ? "weekend" : "school",
+          kind: isOut ? "outside" : "school",
         };
       }
 
-      if (day === WEEKEND_DAY) {
-        const item = weekendItem(slotId);
-        if (!item || !String(item.name || "").trim()) return null;
+      if (mode === "outside") {
+        const item = outsideItemById(slotId, mk);
+        if (!item || item.day !== day || !String(item.name || "").trim()) return null;
         return {
           slotId,
           day,
           period: "",
-          time: weekendTimeLabel(item),
+          time: outsideTimeLabel(item),
           name: String(item.name).trim(),
           key,
           fromKey: null,
           isMovedIn: false,
-          kind: "weekend",
+          kind: "outside",
         };
       }
 
-      // 小周不显示周六固定课；调入的课仍显示
+      if (day === "日") return null;
       if (day === "六" && !isBigWeek(week)) return null;
       const name = baseNameOf(slotId, day);
       if (!name) return null;
@@ -1655,20 +1792,21 @@
       };
     }
 
-    function coursesOf(day, week = viewWeekId) {
-      if (day === WEEKEND_DAY) {
-        return weekendSchedule
-          .map((item) => effectiveCourse(item.id, WEEKEND_DAY, week))
-          .filter(Boolean)
-          .sort((a, b) => {
-            const ra = parseSlotRange(a.time);
-            const rb = parseSlotRange(b.time);
-            return (ra?.startMin || 0) - (rb?.startMin || 0);
-          });
+    function coursesOf(day, week = viewWeekId, mode = scheduleMode) {
+      if (mode === "outside") {
+        return outsideItemsForDay(day, week)
+          .map((item) => effectiveCourse(item.id, day, week, "outside"))
+          .filter(Boolean);
       }
+      if (day === "日") return [];
       return SLOTS
-        .map((slot) => effectiveCourse(slot.id, day, week))
+        .map((slot) => effectiveCourse(slot.id, day, week, "school"))
         .filter(Boolean);
+    }
+
+
+    function coursesOfBoth(day, week = viewWeekId) {
+      return coursesOf(day, week, "school").concat(coursesOf(day, week, "outside"));
     }
 
     function countByStatus(list, status) {
@@ -1687,9 +1825,8 @@
       let leave = 0;
       let transfer = 0;
       const map = getWeekDone(week);
-      const days = SCHOOL_DAYS.concat(WEEKEND_DAY);
-      for (const day of days) {
-        const list = coursesOf(day, week);
+      for (const day of ALL_DAYS) {
+        const list = coursesOfBoth(day, week);
         total += list.length;
         for (const c of list) {
           const st = entryStatus(map, c.key);
@@ -1795,7 +1932,7 @@
       tabs.innerHTML = "";
       const isCurrentWeek = viewWeekId === weekId();
       const today = todayDayLabel();
-      const days = scheduleMode === "weekend" ? [WEEKEND_DAY] : SCHOOL_DAYS;
+      const days = scheduleMode === "outside" ? ALL_DAYS : SCHOOL_DAYS;
       for (const day of days) {
         const btn = document.createElement("button");
         btn.type = "button";
@@ -1804,9 +1941,8 @@
           (isCurrentWeek && day === today ? " today" : "");
         const list = coursesOf(day);
         const handled = countHandled(list);
-        const label = day === WEEKEND_DAY ? "日·校外" : day;
         btn.innerHTML =
-          '<span class="d">' + label + "</span>" +
+          '<span class="d">' + day + "</span>" +
           '<span class="n">' + (list.length ? handled + "/" + list.length : "休") + "</span>";
         btn.addEventListener("click", () => {
           selectedDay = day;
@@ -1911,22 +2047,23 @@
       root.innerHTML = "";
       const sourceKey = actionTarget.key;
       const sourceDay = actionTarget.day || selectedDay;
-      const isWeekend = sourceDay === WEEKEND_DAY || actionTarget.kind === "weekend";
-      const days = isWeekend ? [WEEKEND_DAY] : SCHOOL_DAYS;
-      const slotList = isWeekend
-        ? weekendSchedule.map((s) => ({ id: s.id, period: "", time: weekendTimeLabel(s) }))
-        : SLOTS;
+      const isOutside = actionTarget.kind === "outside" || scheduleMode === "outside";
+      const days = isOutside ? ALL_DAYS : SCHOOL_DAYS;
 
       for (const day of days) {
         const title = document.createElement("div");
         title.className = "transfer-day-title";
-        title.textContent = DAY_FULL[day] + (isWeekend ? " · 校外" : "");
+        title.textContent = DAY_FULL[day] + (isOutside ? " · 校外" : "");
         root.appendChild(title);
+
+        const slotList = isOutside
+          ? outsideItemsForDay(day).map((s) => ({ id: s.id, period: "", time: outsideTimeLabel(s) }))
+          : SLOTS.map((s) => ({ id: s.id, period: s.period, time: s.time }));
 
         for (const slot of slotList) {
           const key = cellKey(slot.id, day);
           if (key === sourceKey) continue;
-          const existing = effectiveCourse(slot.id, day);
+          const existing = effectiveCourse(slot.id, day, viewWeekId, isOutside ? "outside" : "school");
           const occupied = !!existing;
           const btn = document.createElement("button");
           btn.type = "button";
@@ -1965,7 +2102,7 @@
       }
 
       // 原时段保留为「调课」展示；目标时段本周临时出现这门课
-      ov[toKey] = { name: name, from: fromKey };
+      ov[toKey] = { name: name, from: fromKey, kind: (actionTarget && actionTarget.kind) || scheduleMode };
       map[fromKey] = { status: "transfer", at: Date.now(), to: toKey };
       delete map[toKey];
 
@@ -1984,8 +2121,8 @@
       const map = getWeekDone();
       root.innerHTML = "";
       if (!list.length) {
-        root.innerHTML = scheduleMode === "weekend"
-          ? '<div class="empty-day">还没有周末课<br/>点底部「编辑课表」添加课程名和时间</div>'
+        root.innerHTML = scheduleMode === "outside"
+          ? '<div class="empty-day">这一天没有校外课<br/>点底部「编辑课表」添加（可任选周一至周日）</div>'
           : '<div class="empty-day">这一天没有安排课程</div>';
         return;
       }
@@ -2079,17 +2216,17 @@
 
     function renderTable() {
       const schoolEd = document.getElementById("schoolEditor");
-      const weekendEd = document.getElementById("weekendEditor");
-      const isWeekend = scheduleMode === "weekend";
-      schoolEd.hidden = isWeekend;
-      weekendEd.hidden = !isWeekend;
-      document.getElementById("editHint").textContent = isWeekend
-        ? "周末课表独立保存。改完后点「保存课表」。课程名为空的行不会出现在打卡列表。"
+      const outsideEd = document.getElementById("outsideEditor");
+      const isOutside = scheduleMode === "outside";
+      schoolEd.hidden = isOutside;
+      outsideEd.hidden = !isOutside;
+      document.getElementById("editHint").textContent = isOutside
+        ? "校外课按月保存。可添加周一至周日任意时段；下个月可「从上月导入」。课程名为空不显示。"
         : "长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。";
-      document.getElementById("sheetTitle").textContent = isWeekend ? "编辑周末课表" : "编辑校内课表 / 更多";
+      document.getElementById("sheetTitle").textContent = isOutside ? "编辑校外课表" : "编辑校内课表 / 更多";
 
-      if (isWeekend) {
-        renderWeekendEditor();
+      if (isOutside) {
+        renderOutsideEditor();
         return;
       }
 
@@ -2128,34 +2265,37 @@
       }
     }
 
-    function renderWeekendEditor() {
-      const root = document.getElementById("weekendRows");
+    function renderOutsideEditor() {
+      document.getElementById("outsideMonthTitle").textContent = formatMonthKey(editOutsideMonth) + "校外课";
+      const root = document.getElementById("outsideRows");
       root.innerHTML = "";
-      if (!weekendSchedule.length) {
-        weekendSchedule = structuredClone(DEFAULT_WEEKEND);
-      }
-      weekendSchedule.forEach((item, idx) => {
+      const list = getOutsideMonth(editOutsideMonth);
+      list.forEach((item, idx) => {
         const row = document.createElement("div");
-        row.className = "weekend-row";
+        row.className = "outside-row";
+        const dayOpts = ALL_DAYS.map((d) =>
+          '<option value="' + d + '"' + (item.day === d ? " selected" : "") + ">" + DAY_FULL[d] + "</option>"
+        ).join("");
         row.innerHTML =
+          '<label class="day-field">星期<select data-f="day">' + dayOpts + "</select></label>" +
           '<label class="name-field">课程名<input data-f="name" type="text" placeholder="例如：校外辅导" value="' + escapeHtml(item.name) + '" /></label>' +
           '<label>开始<input data-f="start" type="time" value="' + escapeHtml(normalizeHm(item.start)) + '" /></label>' +
           '<label>结束<input data-f="end" type="time" value="' + escapeHtml(normalizeHm(item.end)) + '" /></label>' +
           '<button type="button" class="del-btn" data-del="' + idx + '">删除</button>';
-        row.querySelectorAll("input").forEach((input) => {
-          input.addEventListener("change", () => {
+        row.querySelectorAll("input, select").forEach((input) => {
+          const sync = () => {
             const field = input.dataset.f;
-            if (field === "name") weekendSchedule[idx].name = input.value.trim();
-            if (field === "start") weekendSchedule[idx].start = normalizeHm(input.value);
-            if (field === "end") weekendSchedule[idx].end = normalizeHm(input.value);
-          });
-          input.addEventListener("input", () => {
-            if (input.dataset.f === "name") weekendSchedule[idx].name = input.value.trim();
-          });
+            if (field === "name") list[idx].name = input.value.trim();
+            if (field === "start") list[idx].start = normalizeHm(input.value);
+            if (field === "end") list[idx].end = normalizeHm(input.value);
+            if (field === "day") list[idx].day = input.value;
+          };
+          input.addEventListener("change", sync);
+          input.addEventListener("input", sync);
         });
         row.querySelector("[data-del]").addEventListener("click", () => {
-          weekendSchedule.splice(idx, 1);
-          renderWeekendEditor();
+          list.splice(idx, 1);
+          renderOutsideEditor();
         });
         root.appendChild(row);
       });
@@ -2183,12 +2323,12 @@
     function goToday() {
       viewWeekId = weekId();
       ensureCurrentWeekBucket();
-      setScheduleMode(preferredModeForDay(), { silent: true });
-      selectedDay = todayDayLabel() === WEEKEND_DAY && scheduleMode === "weekend"
-        ? WEEKEND_DAY
-        : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
+      selectedDay = scheduleMode === "outside"
+        ? todayDayLabel()
+        : (todayDayLabel() === "日" ? "一" : todayDayLabel());
+      if (scheduleMode === "outside") editOutsideMonth = monthKeyFromDate(new Date());
       render();
-      toast(scheduleMode === "weekend" ? "已回到今天（周末课表）" : "已回到今天");
+      toast(scheduleMode === "outside" ? "已回到今天（校外课表）" : "已回到今天");
     }
 
     function shiftViewWeek(delta) {
@@ -2197,12 +2337,13 @@
       viewWeekId = next;
       if (!doneByWeek[viewWeekId]) doneByWeek[viewWeekId] = {};
       if (viewWeekId === weekId()) {
-        setScheduleMode(preferredModeForDay(), { silent: true });
-        selectedDay = scheduleMode === "weekend" ? WEEKEND_DAY : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
-      } else if (scheduleMode === "weekend") {
-        selectedDay = WEEKEND_DAY;
+        selectedDay = scheduleMode === "outside"
+          ? todayDayLabel()
+          : (todayDayLabel() === "日" ? "一" : todayDayLabel());
+        if (scheduleMode === "outside") editOutsideMonth = monthKeyFromDate(new Date());
       } else {
         selectedDay = "一";
+        editOutsideMonth = monthKeyFromDate(weekIdToDate(viewWeekId));
       }
       render();
     }
@@ -2219,7 +2360,7 @@
     }
 
     function dayLabelFromDate(date) {
-      return SCHOOL_DAYS.concat(WEEKEND_DAY)[(date.getDay() + 6) % 7];
+      return ALL_DAYS[(date.getDay() + 6) % 7];
     }
 
     function ymdKey(date) {
@@ -2269,13 +2410,10 @@
         const wId = weekId(date);
         const weekMap = doneByWeek[wId] || {};
         const items = [];
-        const slotIds = label === WEEKEND_DAY
-          ? weekendSchedule.map((s) => s.id)
-          : SLOTS.map((s) => s.id);
+        const mk = monthKeyFromDate(date);
 
-        for (const slotId of slotIds) {
-          const course = effectiveCourse(slotId, label, wId);
-          if (!course) continue;
+        const pushCourse = (course) => {
+          if (!course) return;
           const status = classStatus(date, getEntry(weekMap, course.key));
           total += 1;
           if (status === "done") done += 1;
@@ -2285,13 +2423,15 @@
           else if (status === "miss") miss += 1;
           else if (status === "pending") pending += 1;
           else future += 1;
+          items.push({ ...course, status, dayLabel: label, weekId: wId });
+        };
 
-          items.push({
-            ...course,
-            status,
-            dayLabel: label,
-            weekId: wId,
-          });
+        if (label !== "日") {
+          for (const slot of SLOTS) pushCourse(effectiveCourse(slot.id, label, wId, "school"));
+        }
+        for (const item of (outsideByMonth[mk] || [])) {
+          if (item.day !== label || !String(item.name || "").trim()) continue;
+          pushCourse(effectiveCourse(item.id, label, wId, "outside"));
         }
 
         if (!items.length) continue;
@@ -2386,19 +2526,21 @@
     }
 
     function saveSchedule() {
-      if (scheduleMode === "weekend") {
-        // sync from inputs in case last keystroke missed
-        document.querySelectorAll("#weekendRows .weekend-row").forEach((row, idx) => {
-          if (!weekendSchedule[idx]) return;
+      if (scheduleMode === "outside") {
+        document.querySelectorAll("#outsideRows .outside-row").forEach((row, idx) => {
+          const list = getOutsideMonth(editOutsideMonth);
+          if (!list[idx]) return;
+          const day = row.querySelector('select[data-f="day"]');
           const name = row.querySelector('input[data-f="name"]');
           const start = row.querySelector('input[data-f="start"]');
           const end = row.querySelector('input[data-f="end"]');
-          if (name) weekendSchedule[idx].name = name.value.trim();
-          if (start) weekendSchedule[idx].start = normalizeHm(start.value);
-          if (end) weekendSchedule[idx].end = normalizeHm(end.value);
+          if (day) list[idx].day = day.value;
+          if (name) list[idx].name = name.value.trim();
+          if (start) list[idx].start = normalizeHm(start.value);
+          if (end) list[idx].end = normalizeHm(end.value);
         });
-        saveWeekend();
-        toast("周末课表已保存");
+        saveOutsideByMonth();
+        toast(formatMonthKey(editOutsideMonth) + "校外课已保存");
         render();
         return;
       }
@@ -2412,12 +2554,12 @@
     }
 
     function resetSchedule() {
-      if (scheduleMode === "weekend") {
-        if (!confirm("恢复默认的周末课表模板（清空课程名）？打卡记录会保留。")) return;
-        weekendSchedule = structuredClone(DEFAULT_WEEKEND);
-        saveWeekend();
+      if (scheduleMode === "outside") {
+        if (!confirm("清空「" + formatMonthKey(editOutsideMonth) + "」的校外课？打卡记录会保留。")) return;
+        outsideByMonth[editOutsideMonth] = [];
+        saveOutsideByMonth();
         render();
-        toast("已恢复周末课表模板");
+        toast("已清空本月校外课");
         return;
       }
       if (!confirm("恢复为最初识别的校内课表？各周打卡记录会保留。")) return;
@@ -2431,7 +2573,7 @@
       const blob = new Blob([JSON.stringify({
         slots: SLOTS,
         schoolDays: SCHOOL_DAYS,
-        weekendSchedule,
+        outsideByMonth,
         grid,
         doneByWeek,
         weekOverrides,
@@ -2444,7 +2586,7 @@
       a.download = "class-schedule.json";
       a.click();
       URL.revokeObjectURL(a.href);
-      toast("已导出 JSON（含校内+周末+各周打卡）");
+      toast("已导出 JSON（含校内+校外按月+各周打卡）");
     }
 
     async function exportPdf() {
@@ -2495,16 +2637,20 @@
     document.getElementById("btnToday").addEventListener("click", goToday);
     document.getElementById("btnTodayDesk").addEventListener("click", goToday);
     document.getElementById("btnModeSchool").addEventListener("click", () => setScheduleMode("school"));
-    document.getElementById("btnModeWeekend").addEventListener("click", () => setScheduleMode("weekend"));
-    document.getElementById("btnAddWeekend").addEventListener("click", () => {
-      weekendSchedule.push({
-        id: newWeekendId(),
+    document.getElementById("btnModeOutside").addEventListener("click", () => setScheduleMode("outside"));
+    document.getElementById("btnAddOutside").addEventListener("click", () => {
+      getOutsideMonth(editOutsideMonth).push({
+        id: newOutsideId(),
+        day: ALL_DAYS.includes(selectedDay) ? selectedDay : "六",
         name: "",
         start: "09:00",
         end: "10:30",
       });
-      renderWeekendEditor();
+      renderOutsideEditor();
     });
+    document.getElementById("btnPrevOutsideMonth").addEventListener("click", () => shiftOutsideMonth(-1));
+    document.getElementById("btnNextOutsideMonth").addEventListener("click", () => shiftOutsideMonth(1));
+    document.getElementById("btnImportOutsidePrev").addEventListener("click", importOutsideFromPrevMonth);
     document.getElementById("btnMonth").addEventListener("click", openMonthSheet);
     document.getElementById("btnMonthDesk").addEventListener("click", openMonthSheet);
     document.getElementById("btnCloseMonth").addEventListener("click", closeMonthSheet);
@@ -2573,10 +2719,10 @@
       saveDoneByWeek();
       if (prev === shiftWeekId(nowWeek, -1) || prev === nowWeek) {
         viewWeekId = nowWeek;
-        setScheduleMode(preferredModeForDay(), { silent: true });
-        selectedDay = scheduleMode === "weekend"
-          ? WEEKEND_DAY
-          : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
+        selectedDay = scheduleMode === "outside"
+          ? todayDayLabel()
+          : (todayDayLabel() === "日" ? "一" : todayDayLabel());
+        if (scheduleMode === "outside") editOutsideMonth = monthKeyFromDate(new Date());
         if (prev !== nowWeek) toast("已进入新的一周，往周记录仍保留");
       }
       render();
@@ -2589,7 +2735,7 @@
 
     setScheduleMode(scheduleMode, { silent: true });
     render();
-    toast(scheduleMode === "weekend" ? "周末课表可单独维护" : "校内 / 周末课表已分开");
+    toast("校内 / 校外课表已分开 · 校外按月维护");
   </script>
 </body>
 </html>
