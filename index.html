@@ -2786,10 +2786,10 @@
     }
 
     function openMonthSheet() {
-    function openMonthSheet() {
       const now = new Date();
       viewMonth = { y: now.getFullYear(), m: now.getMonth() };
       monthFilter = "all";
+      monthKindFilter = "all";
       document.getElementById("monthSheet").classList.add("open");
       renderMonthView();
     }
