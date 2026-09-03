@@ -879,6 +879,92 @@
       border-radius: 10px;
       border: 1px solid var(--line);
     }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin: 12px 0 10px;
+      padding: 4px;
+      border-radius: 14px;
+      background: #e8eef1;
+      border: 1px solid var(--line);
+    }
+
+    .mode-switch button {
+      border: 0;
+      border-radius: 11px;
+      padding: 10px 8px;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .mode-switch button.active {
+      background: #fff;
+      color: var(--header);
+      box-shadow: 0 1px 3px rgba(36, 52, 71, 0.12);
+    }
+
+    .mode-switch button .sub-label {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      opacity: 0.85;
+    }
+
+    .weekend-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .weekend-row label {
+      display: grid;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .weekend-row label.name-field { grid-column: 1 / -2; }
+
+    .weekend-row input {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+
+    .weekend-row .del-btn {
+      border: 0;
+      background: #fdecea;
+      color: var(--danger);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      height: 40px;
+    }
+
+    @media (max-width: 520px) {
+      .weekend-row {
+        grid-template-columns: 1fr 1fr auto;
+      }
+      .weekend-row label.name-field { grid-column: 1 / -1; }
+    }
   </style>
 </head>
 <body>
@@ -924,7 +1010,18 @@
       <div class="bar"><i id="progressBar"></i></div>
     </div>
 
-    <p class="tap-hint">点课程：已上 / 未上 · 右侧「⋯」可选请假、调课、其他</p>
+    <div class="mode-switch" role="tablist" aria-label="课表类型">
+      <button type="button" id="btnModeSchool" data-mode="school" class="active" role="tab" aria-selected="true">
+        校内课表
+        <span class="sub-label">周一至周六 · 40分钟</span>
+      </button>
+      <button type="button" id="btnModeWeekend" data-mode="weekend" role="tab" aria-selected="false">
+        周末课表
+        <span class="sub-label">周日校外 · 可自定</span>
+      </button>
+    </div>
+
+    <p class="tap-hint" id="tapHint">点课程：已上 / 未上 · 右侧「⋯」可选请假、调课、其他</p>
 
     <div class="day-tabs" id="dayTabs"></div>
     <div class="class-list" id="classList"></div>
@@ -1027,19 +1124,24 @@
       </div>
       <div id="pdfRoot">
         <div class="pdf-title" style="display:none;margin:0 0 10px;font-weight:700;">周课表</div>
-        <div class="board">
+        <div class="board" id="schoolEditor">
           <table id="schedule">
             <thead>
               <tr>
                 <th>节次 / 时间</th>
-                <th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th>
+                <th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
+        <div id="weekendEditor" hidden>
+          <p class="hint" style="margin-top:0;">维护周日校外课：课程名、开始与结束时间。课程名为空表示不上这节。</p>
+          <div id="weekendRows"></div>
+          <button type="button" id="btnAddWeekend" style="margin-top:4px;">添加一节周末课</button>
+        </div>
       </div>
-      <p class="hint">长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。</p>
+      <p class="hint" id="editHint">长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。</p>
     </div>
   </div>
 
@@ -1047,7 +1149,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
   <script>
-    const DAYS = ["一", "二", "三", "四", "五", "六", "日"];
+    const SCHOOL_DAYS = ["一", "二", "三", "四", "五", "六"];
+    const WEEKEND_DAY = "日";
     const DAY_FULL = { 一: "周一", 二: "周二", 三: "周三", 四: "周四", 五: "周五", 六: "周六", 日: "周日" };
     const SLOTS = [
       { id: "p1", period: "1", time: "08:30 – 09:10" },
@@ -1064,20 +1167,27 @@
     ];
 
     const DEFAULT_GRID = {
-      p1: { 一: "", 二: "1.3", 三: "1.5", 四: "", 五: "集备", 六: "1.3", 日: "" },
-      p2: { 一: "", 二: "1.5", 三: "1.3", 四: "", 五: "", 六: "1.5", 日: "" },
-      p3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
-      p4: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
-      p5: { 一: "1.5", 二: "", 三: "", 四: "1.5", 五: "", 六: "", 日: "" },
-      p6: { 一: "1.3", 二: "", 三: "", 四: "1.3", 五: "", 六: "", 日: "" },
-      p7: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
-      p8: { 一: "", 二: "1.10", 三: "", 四: "1.8", 五: "", 六: "", 日: "" },
-      e1: { 一: "1.3", 二: "", 三: "", 四: "1.5", 五: "", 六: "", 日: "" },
-      e2: { 一: "1.5", 二: "", 三: "", 四: "1.3", 五: "", 六: "", 日: "" },
-      e3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "", 日: "" },
+      p1: { 一: "", 二: "1.3", 三: "1.5", 四: "", 五: "集备", 六: "1.3" },
+      p2: { 一: "", 二: "1.5", 三: "1.3", 四: "", 五: "", 六: "1.5" },
+      p3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "" },
+      p4: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "" },
+      p5: { 一: "1.5", 二: "", 三: "", 四: "1.5", 五: "", 六: "" },
+      p6: { 一: "1.3", 二: "", 三: "", 四: "1.3", 五: "", 六: "" },
+      p7: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "" },
+      p8: { 一: "", 二: "1.10", 三: "", 四: "1.8", 五: "", 六: "" },
+      e1: { 一: "1.3", 二: "", 三: "", 四: "1.5", 五: "", 六: "" },
+      e2: { 一: "1.5", 二: "", 三: "", 四: "1.3", 五: "", 六: "" },
+      e3: { 一: "", 二: "", 三: "", 四: "", 五: "", 六: "" },
     };
 
+    // 周日校外默认空模板，用户可改名/时间/增减
+    const DEFAULT_WEEKEND = [
+      { id: "w1", name: "", start: "09:00", end: "10:30" },
+      { id: "w2", name: "", start: "14:00", end: "16:00" },
+    ];
+
     const GRID_KEY = "weekly-class-schedule-v2";
+    const WEEKEND_KEY = "weekend-sunday-schedule-v1";
     const DONE_KEY_OLD = "weekly-class-done-v1";
     const WEEK_KEY_OLD = "weekly-class-week-id-v1";
     const DONE_BY_WEEK_KEY = "weekly-class-done-by-week-v2";
@@ -1182,7 +1292,32 @@
     }
 
     function todayDayLabel() {
-      return DAYS[(new Date().getDay() + 6) % 7];
+      return SCHOOL_DAYS.concat(WEEKEND_DAY)[(new Date().getDay() + 6) % 7];
+    }
+
+    function preferredModeForDay(day = todayDayLabel()) {
+      return day === WEEKEND_DAY ? "weekend" : "school";
+    }
+
+    function setScheduleMode(mode, opts = {}) {
+      scheduleMode = mode === "weekend" ? "weekend" : "school";
+      document.getElementById("btnModeSchool").classList.toggle("active", scheduleMode === "school");
+      document.getElementById("btnModeWeekend").classList.toggle("active", scheduleMode === "weekend");
+      document.getElementById("btnModeSchool").setAttribute("aria-selected", scheduleMode === "school" ? "true" : "false");
+      document.getElementById("btnModeWeekend").setAttribute("aria-selected", scheduleMode === "weekend" ? "true" : "false");
+      if (scheduleMode === "weekend") {
+        selectedDay = WEEKEND_DAY;
+        document.getElementById("tapHint").textContent =
+          "周末课表：周日校外课 · 点课程打卡 · 可在「编辑课表」里改时间/课程名";
+      } else {
+        if (selectedDay === WEEKEND_DAY) {
+          selectedDay = todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel();
+          if (!SCHOOL_DAYS.includes(selectedDay)) selectedDay = "一";
+        }
+        document.getElementById("tapHint").textContent =
+          "点课程：已上 / 未上 · 右侧「⋯」可选请假、调课、其他";
+      }
+      if (!opts.silent) render();
     }
 
     function cellKey(slotId, day) {
@@ -1212,12 +1347,60 @@
         const parsed = JSON.parse(raw);
         const merged = structuredClone(DEFAULT_GRID);
         for (const slot of SLOTS) {
-          merged[slot.id] = { ...merged[slot.id], ...(parsed[slot.id] || {}) };
+          const row = { ...(parsed[slot.id] || {}) };
+          delete row[WEEKEND_DAY];
+          merged[slot.id] = { ...merged[slot.id], ...row };
+          for (const day of SCHOOL_DAYS) {
+            if (merged[slot.id][day] == null) merged[slot.id][day] = "";
+          }
         }
         return merged;
       } catch {
         return structuredClone(DEFAULT_GRID);
       }
+    }
+
+    function saveGrid() {
+      localStorage.setItem(GRID_KEY, JSON.stringify(grid));
+    }
+
+    function loadWeekend() {
+      try {
+        const raw = localStorage.getItem(WEEKEND_KEY);
+        if (!raw) return structuredClone(DEFAULT_WEEKEND);
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return structuredClone(DEFAULT_WEEKEND);
+        return parsed
+          .map((item, idx) => ({
+            id: String(item.id || ("w" + (idx + 1))),
+            name: String(item.name || "").trim(),
+            start: normalizeHm(item.start || "09:00"),
+            end: normalizeHm(item.end || "10:30"),
+          }))
+          .filter((item) => item.id);
+      } catch {
+        return structuredClone(DEFAULT_WEEKEND);
+      }
+    }
+
+    function saveWeekend() {
+      localStorage.setItem(WEEKEND_KEY, JSON.stringify(weekendSchedule));
+    }
+
+    function normalizeHm(v) {
+      const m = String(v).trim().match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return "09:00";
+      const h = Math.min(23, Math.max(0, Number(m[1])));
+      const min = Math.min(59, Math.max(0, Number(m[2])));
+      return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+    }
+
+    function weekendTimeLabel(item) {
+      return normalizeHm(item.start) + " – " + normalizeHm(item.end);
+    }
+
+    function newWeekendId() {
+      return "w" + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
     }
 
     function loadDoneByWeek() {
@@ -1249,10 +1432,6 @@
       const next = {};
       for (const id of keep) next[id] = store[id];
       return next;
-    }
-
-    function saveGrid() {
-      localStorage.setItem(GRID_KEY, JSON.stringify(grid));
     }
 
     function normalizeEntry(v) {
@@ -1306,6 +1485,10 @@
     }
 
     function describeSlot(slotId, day) {
+      if (day === WEEKEND_DAY || String(slotId).startsWith("w")) {
+        const item = weekendSchedule.find((s) => s.id === slotId);
+        if (item) return DAY_FULL[WEEKEND_DAY] + " " + weekendTimeLabel(item);
+      }
       const slot = SLOTS.find((s) => s.id === slotId);
       const period = slot && slot.period ? "第" + slot.period + "节 " : "";
       return DAY_FULL[day] + " " + period + (slot ? slot.time : "");
@@ -1348,7 +1531,7 @@
     }
 
     function findNextClass(now = new Date()) {
-      const day = DAYS[(now.getDay() + 6) % 7];
+      const day = SCHOOL_DAYS.concat(WEEKEND_DAY)[(now.getDay() + 6) % 7];
       const map = getWeekDone(weekId(now));
       const list = coursesOf(day, weekId(now)).filter((c) => entryStatus(map, c.key) !== "transfer");
       if (!list.length) return { kind: "empty" };
@@ -1392,11 +1575,13 @@
     }
 
     let grid = loadGrid();
+    let weekendSchedule = loadWeekend();
     let doneByWeek = loadDoneByWeek();
     let weekOverrides = loadOverrides();
     let weekGoalPercent = loadWeekGoal();
     let viewWeekId = weekId();
-    let selectedDay = todayDayLabel();
+    let scheduleMode = preferredModeForDay();
+    let selectedDay = scheduleMode === "weekend" ? WEEKEND_DAY : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
     const nowInit = new Date();
     let viewMonth = { y: nowInit.getFullYear(), m: nowInit.getMonth() };
     let monthFilter = "all";
@@ -1409,22 +1594,50 @@
       return (grid[slotId]?.[day] || "").trim();
     }
 
+    function weekendItem(slotId) {
+      return weekendSchedule.find((s) => s.id === slotId) || null;
+    }
+
     function effectiveCourse(slotId, day, week = viewWeekId) {
       const key = cellKey(slotId, day);
       const ov = getWeekOverride(week)[key];
       if (ov && ov.removed) return null;
       if (ov && ov.name) {
+        const time = day === WEEKEND_DAY
+          ? (weekendItem(slotId) ? weekendTimeLabel(weekendItem(slotId)) : "")
+          : ((SLOTS.find((s) => s.id === slotId) || {}).time || "");
+        const period = day === WEEKEND_DAY
+          ? ""
+          : ((SLOTS.find((s) => s.id === slotId) || {}).period || "");
         return {
           slotId,
           day,
-          period: (SLOTS.find((s) => s.id === slotId) || {}).period || "",
-          time: (SLOTS.find((s) => s.id === slotId) || {}).time || "",
+          period,
+          time,
           name: ov.name,
           key,
           fromKey: ov.from || null,
           isMovedIn: true,
+          kind: day === WEEKEND_DAY ? "weekend" : "school",
         };
       }
+
+      if (day === WEEKEND_DAY) {
+        const item = weekendItem(slotId);
+        if (!item || !String(item.name || "").trim()) return null;
+        return {
+          slotId,
+          day,
+          period: "",
+          time: weekendTimeLabel(item),
+          name: String(item.name).trim(),
+          key,
+          fromKey: null,
+          isMovedIn: false,
+          kind: "weekend",
+        };
+      }
+
       // 小周不显示周六固定课；调入的课仍显示
       if (day === "六" && !isBigWeek(week)) return null;
       const name = baseNameOf(slotId, day);
@@ -1438,10 +1651,21 @@
         key,
         fromKey: null,
         isMovedIn: false,
+        kind: "school",
       };
     }
 
     function coursesOf(day, week = viewWeekId) {
+      if (day === WEEKEND_DAY) {
+        return weekendSchedule
+          .map((item) => effectiveCourse(item.id, WEEKEND_DAY, week))
+          .filter(Boolean)
+          .sort((a, b) => {
+            const ra = parseSlotRange(a.time);
+            const rb = parseSlotRange(b.time);
+            return (ra?.startMin || 0) - (rb?.startMin || 0);
+          });
+      }
       return SLOTS
         .map((slot) => effectiveCourse(slot.id, day, week))
         .filter(Boolean);
@@ -1463,7 +1687,8 @@
       let leave = 0;
       let transfer = 0;
       const map = getWeekDone(week);
-      for (const day of DAYS) {
+      const days = SCHOOL_DAYS.concat(WEEKEND_DAY);
+      for (const day of days) {
         const list = coursesOf(day, week);
         total += list.length;
         for (const c of list) {
@@ -1570,7 +1795,8 @@
       tabs.innerHTML = "";
       const isCurrentWeek = viewWeekId === weekId();
       const today = todayDayLabel();
-      for (const day of DAYS) {
+      const days = scheduleMode === "weekend" ? [WEEKEND_DAY] : SCHOOL_DAYS;
+      for (const day of days) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "day-tab" +
@@ -1578,8 +1804,9 @@
           (isCurrentWeek && day === today ? " today" : "");
         const list = coursesOf(day);
         const handled = countHandled(list);
+        const label = day === WEEKEND_DAY ? "日·校外" : day;
         btn.innerHTML =
-          '<span class="d">' + day + "</span>" +
+          '<span class="d">' + label + "</span>" +
           '<span class="n">' + (list.length ? handled + "/" + list.length : "休") + "</span>";
         btn.addEventListener("click", () => {
           selectedDay = day;
@@ -1684,14 +1911,19 @@
       root.innerHTML = "";
       const sourceKey = actionTarget.key;
       const sourceDay = actionTarget.day || selectedDay;
+      const isWeekend = sourceDay === WEEKEND_DAY || actionTarget.kind === "weekend";
+      const days = isWeekend ? [WEEKEND_DAY] : SCHOOL_DAYS;
+      const slotList = isWeekend
+        ? weekendSchedule.map((s) => ({ id: s.id, period: "", time: weekendTimeLabel(s) }))
+        : SLOTS;
 
-      for (const day of DAYS) {
+      for (const day of days) {
         const title = document.createElement("div");
         title.className = "transfer-day-title";
-        title.textContent = DAY_FULL[day];
+        title.textContent = DAY_FULL[day] + (isWeekend ? " · 校外" : "");
         root.appendChild(title);
 
-        for (const slot of SLOTS) {
+        for (const slot of slotList) {
           const key = cellKey(slot.id, day);
           if (key === sourceKey) continue;
           const existing = effectiveCourse(slot.id, day);
@@ -1752,7 +1984,9 @@
       const map = getWeekDone();
       root.innerHTML = "";
       if (!list.length) {
-        root.innerHTML = '<div class="empty-day">这一天没有安排课程</div>';
+        root.innerHTML = scheduleMode === "weekend"
+          ? '<div class="empty-day">还没有周末课<br/>点底部「编辑课表」添加课程名和时间</div>'
+          : '<div class="empty-day">这一天没有安排课程</div>';
         return;
       }
       for (const item of list) {
@@ -1844,6 +2078,21 @@
     }
 
     function renderTable() {
+      const schoolEd = document.getElementById("schoolEditor");
+      const weekendEd = document.getElementById("weekendEditor");
+      const isWeekend = scheduleMode === "weekend";
+      schoolEd.hidden = isWeekend;
+      weekendEd.hidden = !isWeekend;
+      document.getElementById("editHint").textContent = isWeekend
+        ? "周末课表独立保存。改完后点「保存课表」。课程名为空的行不会出现在打卡列表。"
+        : "长按或点格子可改课程名。打卡状态在主界面点课程卡片切换。";
+      document.getElementById("sheetTitle").textContent = isWeekend ? "编辑周末课表" : "编辑校内课表 / 更多";
+
+      if (isWeekend) {
+        renderWeekendEditor();
+        return;
+      }
+
       const tbody = document.querySelector("#schedule tbody");
       tbody.innerHTML = "";
       for (const slot of SLOTS) {
@@ -1852,7 +2101,7 @@
         timeTd.className = "time-cell";
         timeTd.textContent = (slot.period ? slot.period + " " : "") + slot.time;
         tr.appendChild(timeTd);
-        for (const day of DAYS) {
+        for (const day of SCHOOL_DAYS) {
           const td = document.createElement("td");
           const cell = document.createElement("div");
           cell.contentEditable = "true";
@@ -1879,6 +2128,39 @@
       }
     }
 
+    function renderWeekendEditor() {
+      const root = document.getElementById("weekendRows");
+      root.innerHTML = "";
+      if (!weekendSchedule.length) {
+        weekendSchedule = structuredClone(DEFAULT_WEEKEND);
+      }
+      weekendSchedule.forEach((item, idx) => {
+        const row = document.createElement("div");
+        row.className = "weekend-row";
+        row.innerHTML =
+          '<label class="name-field">课程名<input data-f="name" type="text" placeholder="例如：校外辅导" value="' + escapeHtml(item.name) + '" /></label>' +
+          '<label>开始<input data-f="start" type="time" value="' + escapeHtml(normalizeHm(item.start)) + '" /></label>' +
+          '<label>结束<input data-f="end" type="time" value="' + escapeHtml(normalizeHm(item.end)) + '" /></label>' +
+          '<button type="button" class="del-btn" data-del="' + idx + '">删除</button>';
+        row.querySelectorAll("input").forEach((input) => {
+          input.addEventListener("change", () => {
+            const field = input.dataset.f;
+            if (field === "name") weekendSchedule[idx].name = input.value.trim();
+            if (field === "start") weekendSchedule[idx].start = normalizeHm(input.value);
+            if (field === "end") weekendSchedule[idx].end = normalizeHm(input.value);
+          });
+          input.addEventListener("input", () => {
+            if (input.dataset.f === "name") weekendSchedule[idx].name = input.value.trim();
+          });
+        });
+        row.querySelector("[data-del]").addEventListener("click", () => {
+          weekendSchedule.splice(idx, 1);
+          renderWeekendEditor();
+        });
+        root.appendChild(row);
+      });
+    }
+
     function render() {
       updateWeekLabel();
       updateNextCard();
@@ -1901,9 +2183,12 @@
     function goToday() {
       viewWeekId = weekId();
       ensureCurrentWeekBucket();
-      selectedDay = todayDayLabel();
+      setScheduleMode(preferredModeForDay(), { silent: true });
+      selectedDay = todayDayLabel() === WEEKEND_DAY && scheduleMode === "weekend"
+        ? WEEKEND_DAY
+        : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
       render();
-      toast("已回到今天");
+      toast(scheduleMode === "weekend" ? "已回到今天（周末课表）" : "已回到今天");
     }
 
     function shiftViewWeek(delta) {
@@ -1911,8 +2196,14 @@
       if (delta > 0 && next > weekId()) return;
       viewWeekId = next;
       if (!doneByWeek[viewWeekId]) doneByWeek[viewWeekId] = {};
-      if (viewWeekId === weekId()) selectedDay = todayDayLabel();
-      else selectedDay = "一";
+      if (viewWeekId === weekId()) {
+        setScheduleMode(preferredModeForDay(), { silent: true });
+        selectedDay = scheduleMode === "weekend" ? WEEKEND_DAY : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
+      } else if (scheduleMode === "weekend") {
+        selectedDay = WEEKEND_DAY;
+      } else {
+        selectedDay = "一";
+      }
       render();
     }
 
@@ -1928,7 +2219,7 @@
     }
 
     function dayLabelFromDate(date) {
-      return DAYS[(date.getDay() + 6) % 7];
+      return SCHOOL_DAYS.concat(WEEKEND_DAY)[(date.getDay() + 6) % 7];
     }
 
     function ymdKey(date) {
@@ -1978,9 +2269,12 @@
         const wId = weekId(date);
         const weekMap = doneByWeek[wId] || {};
         const items = [];
+        const slotIds = label === WEEKEND_DAY
+          ? weekendSchedule.map((s) => s.id)
+          : SLOTS.map((s) => s.id);
 
-        for (const slot of SLOTS) {
-          const course = effectiveCourse(slot.id, label, wId);
+        for (const slotId of slotIds) {
+          const course = effectiveCourse(slotId, label, wId);
           if (!course) continue;
           const status = classStatus(date, getEntry(weekMap, course.key));
           total += 1;
@@ -2092,27 +2386,52 @@
     }
 
     function saveSchedule() {
+      if (scheduleMode === "weekend") {
+        // sync from inputs in case last keystroke missed
+        document.querySelectorAll("#weekendRows .weekend-row").forEach((row, idx) => {
+          if (!weekendSchedule[idx]) return;
+          const name = row.querySelector('input[data-f="name"]');
+          const start = row.querySelector('input[data-f="start"]');
+          const end = row.querySelector('input[data-f="end"]');
+          if (name) weekendSchedule[idx].name = name.value.trim();
+          if (start) weekendSchedule[idx].start = normalizeHm(start.value);
+          if (end) weekendSchedule[idx].end = normalizeHm(end.value);
+        });
+        saveWeekend();
+        toast("周末课表已保存");
+        render();
+        return;
+      }
       document.querySelectorAll("#schedule .slot").forEach((el) => {
         const raw = el.textContent.replace(/\s*(✓|假|调|他)\s*$/, "").trim();
         grid[el.dataset.slot][el.dataset.day] = raw;
       });
       saveGrid();
-      toast("课表已保存");
+      toast("校内课表已保存");
       render();
     }
 
     function resetSchedule() {
-      if (!confirm("恢复为最初识别的课表？各周打卡记录会保留。")) return;
+      if (scheduleMode === "weekend") {
+        if (!confirm("恢复默认的周末课表模板（清空课程名）？打卡记录会保留。")) return;
+        weekendSchedule = structuredClone(DEFAULT_WEEKEND);
+        saveWeekend();
+        render();
+        toast("已恢复周末课表模板");
+        return;
+      }
+      if (!confirm("恢复为最初识别的校内课表？各周打卡记录会保留。")) return;
       grid = structuredClone(DEFAULT_GRID);
       saveGrid();
       render();
-      toast("已恢复原始课表");
+      toast("已恢复原始校内课表");
     }
 
     function exportJson() {
       const blob = new Blob([JSON.stringify({
         slots: SLOTS,
-        days: DAYS,
+        schoolDays: SCHOOL_DAYS,
+        weekendSchedule,
         grid,
         doneByWeek,
         weekOverrides,
@@ -2125,7 +2444,7 @@
       a.download = "class-schedule.json";
       a.click();
       URL.revokeObjectURL(a.href);
-      toast("已导出 JSON（含各周打卡）");
+      toast("已导出 JSON（含校内+周末+各周打卡）");
     }
 
     async function exportPdf() {
@@ -2133,11 +2452,14 @@
         toast("PDF 库加载失败，可改用打印");
         return;
       }
+      const prevMode = scheduleMode;
+      setScheduleMode("school", { silent: true });
       openSheet();
       await new Promise((r) => setTimeout(r, 50));
       const root = document.getElementById("pdfRoot");
       const title = root.querySelector(".pdf-title");
       title.style.display = "block";
+      title.textContent = "校内周课表";
       document.querySelectorAll("#schedule .slot").forEach((el) => el.contentEditable = "false");
       try {
         const stamp = new Date();
@@ -2158,18 +2480,31 @@
           })
           .from(root)
           .save();
-        toast("已导出 PDF");
+        toast("已导出 PDF（校内课表）");
       } catch (e) {
         console.error(e);
         toast("导出失败，试试打印");
       } finally {
         title.style.display = "none";
         document.querySelectorAll("#schedule .slot").forEach((el) => el.contentEditable = "true");
+        setScheduleMode(prevMode, { silent: true });
+        if (document.getElementById("sheet").classList.contains("open")) renderTable();
       }
     }
 
     document.getElementById("btnToday").addEventListener("click", goToday);
     document.getElementById("btnTodayDesk").addEventListener("click", goToday);
+    document.getElementById("btnModeSchool").addEventListener("click", () => setScheduleMode("school"));
+    document.getElementById("btnModeWeekend").addEventListener("click", () => setScheduleMode("weekend"));
+    document.getElementById("btnAddWeekend").addEventListener("click", () => {
+      weekendSchedule.push({
+        id: newWeekendId(),
+        name: "",
+        start: "09:00",
+        end: "10:30",
+      });
+      renderWeekendEditor();
+    });
     document.getElementById("btnMonth").addEventListener("click", openMonthSheet);
     document.getElementById("btnMonthDesk").addEventListener("click", openMonthSheet);
     document.getElementById("btnCloseMonth").addEventListener("click", closeMonthSheet);
@@ -2238,7 +2573,10 @@
       saveDoneByWeek();
       if (prev === shiftWeekId(nowWeek, -1) || prev === nowWeek) {
         viewWeekId = nowWeek;
-        selectedDay = todayDayLabel();
+        setScheduleMode(preferredModeForDay(), { silent: true });
+        selectedDay = scheduleMode === "weekend"
+          ? WEEKEND_DAY
+          : (todayDayLabel() === WEEKEND_DAY ? "一" : todayDayLabel());
         if (prev !== nowWeek) toast("已进入新的一周，往周记录仍保留");
       }
       render();
@@ -2249,8 +2587,9 @@
       if (viewWeekId === weekId() && selectedDay === todayDayLabel()) updateNextCard();
     }, 30000);
 
+    setScheduleMode(scheduleMode, { silent: true });
     render();
-    toast("下一节 / 请假调课 / 周目标 已启用");
+    toast(scheduleMode === "weekend" ? "周末课表可单独维护" : "校内 / 周末课表已分开");
   </script>
 </body>
 </html>
