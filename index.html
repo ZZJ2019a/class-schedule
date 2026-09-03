@@ -1120,6 +1120,19 @@
       return weekId(d);
     }
 
+    // 大小周：以本周（2026-08-31 起）为「大周」锚点，周六有课；隔一周为「小周」，周六休息
+    const BIG_WEEK_ANCHOR = "2026-08-31";
+
+    function weeksBetween(fromId, toId) {
+      const a = weekIdToDate(fromId).getTime();
+      const b = weekIdToDate(toId).getTime();
+      return Math.round((b - a) / (7 * 86400000));
+    }
+
+    function isBigWeek(week = viewWeekId) {
+      return ((weeksBetween(BIG_WEEK_ANCHOR, week) % 2) + 2) % 2 === 0;
+    }
+
     function isoWeekNumber(date = new Date()) {
       const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
@@ -1148,9 +1161,10 @@
           : formatYmd(sun);
       const isCurrent = weekStartId === weekId(now);
       const prefix = isCurrent ? "本周" : "第" + weekNo + "周";
+      const bi = isBigWeek(weekStartId) ? "大周（周六有课）" : "小周（周六休息）";
       return {
         title: prefix + " " + formatYmd(mon) + " – " + endText,
-        meta: mon.getFullYear() + "年第" + weekNo + "周" +
+        meta: mon.getFullYear() + "年第" + weekNo + "周 · " + bi +
           (isCurrent ? " · 今天" + formatMd(now) + "（" + DAY_FULL[todayDayLabel()] + "）" : " · 历史记录可查看/补打"),
         isCurrent,
       };
@@ -1411,6 +1425,8 @@
           isMovedIn: true,
         };
       }
+      // 小周不显示周六固定课；调入的课仍显示
+      if (day === "六" && !isBigWeek(week)) return null;
       const name = baseNameOf(slotId, day);
       if (!name) return null;
       return {
@@ -1448,7 +1464,7 @@
       let transfer = 0;
       const map = getWeekDone(week);
       for (const day of DAYS) {
-        const list = coursesOf(day);
+        const list = coursesOf(day, week);
         total += list.length;
         for (const c of list) {
           const st = entryStatus(map, c.key);
